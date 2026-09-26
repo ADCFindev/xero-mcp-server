@@ -32,7 +32,7 @@ const DeleteCreditNoteAllocationTool = CreateXeroTool(
         {
           type: "text" as const,
           text: [
-            "Credit note allocation deletion requested successfully.",
+            "Credit note allocation deleted successfully.",
             JSON.stringify(response.result, null, 2),
             "Read the credit note and invoice/bill back from Xero to verify the reversal.",
           ].join("\n"),
