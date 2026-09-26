@@ -27,9 +27,9 @@ function isXeroSdkError(error: unknown): error is XeroSdkError {
 function formatHttpStatus(status: number): string {
   switch (status) {
     case 401:
-      return "Authentication failed. Please check your Xero credentials.";
+      return "Authentication failed. For attachment endpoints, also verify that the Xero connection is authorised for the attachments scope.";
     case 403:
-      return "You don't have permission to access this resource in Xero.";
+      return "Xero denied access to this resource. Verify the required Xero scope/permission for this endpoint.";
     case 404:
       return "The requested resource was not found in Xero.";
     case 429:
