@@ -3,6 +3,7 @@ import ListAgedPayablesByContact from "./list-aged-payables-by-contact.tool.js";
 import ListAgedReceivablesByContact
   from "./list-aged-receivables-by-contact.tool.js";
 import ListBankTransactionsTool from "./list-bank-transactions.tool.js";
+import ListBatchPaymentsTool from "./list-batch-payments.tool.js";
 import ListContactsTool from "./list-contacts.tool.js";
 import ListCreditNotesTool from "./list-credit-notes.tool.js";
 import ListInvoicesTool from "./list-invoices.tool.js";
@@ -42,6 +43,7 @@ export const ListTools = [
   ListPaymentsTool,
   ListProfitAndLossTool,
   ListBankTransactionsTool,
+  ListBatchPaymentsTool,
   ListPayrollEmployeesTool,
   ListReportBalanceSheetTool,
   ListOrganisationDetailsTool,
