@@ -4,6 +4,7 @@ import DeleteBatchPaymentTool from "./delete-batch-payment.tool.js";
 import DeleteBankTransferTool from "./delete-bank-transfer.tool.js";
 import DeletePrepaymentAllocationTool from "./delete-prepayment-allocation.tool.js";
 import DeleteOverpaymentAllocationTool from "./delete-overpayment-allocation.tool.js";
+import DeleteCreditNoteAllocationTool from "./delete-credit-note-allocation.tool.js";
 
 export const DeleteTools = [
   DeletePayrollTimesheetTool,
@@ -12,4 +13,5 @@ export const DeleteTools = [
   DeleteBankTransferTool,
   DeletePrepaymentAllocationTool,
   DeleteOverpaymentAllocationTool,
+  DeleteCreditNoteAllocationTool,
 ];
