@@ -1,9 +1,8 @@
 import { LineItem } from "xero-node";
+import { formatAmount } from "./format-xero-output.js";
 
 const formatTracking = (lineItem: LineItem): string | null => {
-  if (!lineItem.tracking || lineItem.tracking.length === 0) {
-    return null;
-  }
+  if (!lineItem.tracking || lineItem.tracking.length === 0) return null;
 
   return lineItem.tracking
     .map((tracking) => {
@@ -15,9 +14,7 @@ const formatTracking = (lineItem: LineItem): string | null => {
 };
 
 const formatItem = (lineItem: LineItem): string[] => {
-  if (!lineItem.item) {
-    return [];
-  }
+  if (!lineItem.item) return [];
 
   return [
     lineItem.item.itemID ? `Item ID: ${lineItem.item.itemID}` : null,
@@ -28,23 +25,28 @@ const formatItem = (lineItem: LineItem): string[] => {
 
 export const formatLineItem = (lineItem: LineItem): string => {
   const tracking = formatTracking(lineItem);
+  const nestedItemCode = lineItem.item?.code;
 
   return [
     ...formatItem(lineItem),
     !lineItem.item && lineItem.lineItemID
       ? `Line Item ID: ${lineItem.lineItemID}`
       : null,
-    lineItem.itemCode ? `Item Code: ${lineItem.itemCode}` : null,
+    lineItem.itemCode && lineItem.itemCode !== nestedItemCode
+      ? `Item Code: ${lineItem.itemCode}`
+      : null,
     lineItem.description ? `Description: ${lineItem.description}` : null,
-    lineItem.quantity !== undefined ? `Quantity: ${lineItem.quantity}` : null,
+    lineItem.quantity !== undefined
+      ? `Quantity: ${lineItem.quantity}`
+      : null,
     lineItem.unitAmount !== undefined
-      ? `Unit Amount: ${lineItem.unitAmount}`
+      ? `Unit Amount: ${formatAmount(lineItem.unitAmount)}`
       : null,
     lineItem.accountCode ? `Account Code: ${lineItem.accountCode}` : null,
     lineItem.taxType ? `Tax Type: ${lineItem.taxType}` : null,
     tracking ? `Tracking: ${tracking}` : null,
     lineItem.lineAmount !== undefined
-      ? `Line Amount: ${lineItem.lineAmount}`
+      ? `Line Amount: ${formatAmount(lineItem.lineAmount)}`
       : null,
   ]
     .filter((value): value is string => Boolean(value))
