@@ -1,6 +1,6 @@
 import http from "node:http";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { XeroMcpServer } from "./server/xero-mcp-server.js";
 import { ToolFactory } from "./tools/tool-factory.js";
 
 const port = Number(process.env.PORT || 3000);
@@ -13,6 +13,17 @@ function isAuthorized(req: http.IncomingMessage): boolean {
     !!process.env.MCP_API_KEY &&
     apiKey === process.env.MCP_API_KEY
   );
+}
+
+function buildServer(): McpServer {
+  const server = new McpServer({
+    name: "ADC Findev Xero MCP",
+    version: "1.0.0",
+  });
+
+  ToolFactory(server);
+
+  return server;
 }
 
 const httpServer = http.createServer(async (req, res) => {
@@ -87,53 +98,25 @@ const httpServer = http.createServer(async (req, res) => {
 
     const bodyText = Buffer.concat(chunks).toString("utf8");
 
-    if (!bodyText) {
-      res.writeHead(400, {
-        "content-type": "application/json",
-      });
+    let body: unknown = undefined;
 
-      res.end(
-        JSON.stringify({
-          error: "Missing request body",
-        })
-      );
-
-      return;
-    }
-
-    let body: unknown;
-
-    try {
+    if (bodyText) {
       body = JSON.parse(bodyText);
-    } catch {
-      res.writeHead(400, {
-        "content-type": "application/json",
-      });
-
-      res.end(
-        JSON.stringify({
-          error: "Invalid JSON",
-        })
-      );
-
-      return;
     }
 
-    const mcpServer = XeroMcpServer.GetServer();
-    ToolFactory(mcpServer);
+    const server = buildServer();
 
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
     });
 
-    await mcpServer.connect(transport);
+    transport.onerror = (error) => {
+      console.error("MCP transport error:", error);
+    };
 
-    await transport.handleRequest(
-      req,
-      res,
-      body
-    );
+    await server.connect(transport);
+    await transport.handleRequest(req, res, body);
   } catch (error) {
     console.error("MCP request failed:", error);
 
@@ -154,7 +137,5 @@ const httpServer = http.createServer(async (req, res) => {
 });
 
 httpServer.listen(port, "0.0.0.0", () => {
-  console.log(
-    `ADC Findev Xero MCP listening on port ${port}`
-  );
+  console.log(`ADC Findev Xero MCP listening on port ${port}`);
 });
