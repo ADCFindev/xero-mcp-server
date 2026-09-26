@@ -25,43 +25,44 @@ const ListInvoicesTool = CreateXeroTool(
       return { content: [{ type: "text" as const, text: "Found 0 invoices." }] };
     }
 
+    const header = `Found ${invoices.length} ${invoices.length === 1 ? "invoice" : "invoices"}.`;
+    const records = invoices.map((invoice) =>
+      [
+        `Invoice ID: ${invoice.invoiceID || "(none)"}`,
+        `Invoice: ${invoice.invoiceNumber || "(none)"}`,
+        invoice.reference ? `Reference: ${invoice.reference}` : null,
+        `Type: ${invoice.type || "Unknown"}`,
+        `Status: ${invoice.status || "Unknown"}`,
+        invoice.contact
+          ? `Contact: ${invoice.contact.name || "(unnamed)"} (${invoice.contact.contactID || "Unknown ID"})`
+          : null,
+        invoice.date ? `Date: ${formatXeroDate(invoice.date)}` : null,
+        invoice.dueDate ? `Due Date: ${formatXeroDate(invoice.dueDate)}` : null,
+        invoice.lineAmountTypes ? `Line Amount Types: ${invoice.lineAmountTypes}` : null,
+        invoice.subTotal !== undefined ? `Sub Total: ${formatAmount(invoice.subTotal)}` : null,
+        invoice.totalTax !== undefined ? `Total Tax: ${formatAmount(invoice.totalTax)}` : null,
+        `Total: ${formatAmount(invoice.total)}`,
+        invoice.totalDiscount !== undefined ? `Total Discount: ${formatAmount(invoice.totalDiscount)}` : null,
+        invoice.currencyCode ? `Currency: ${invoice.currencyCode}` : null,
+        invoice.currencyRate !== undefined ? `Currency Rate: ${invoice.currencyRate}` : null,
+        invoice.updatedDateUTC ? `Last Updated: ${formatXeroDate(invoice.updatedDateUTC)}` : null,
+        invoice.fullyPaidOnDate ? `Fully Paid On: ${formatXeroDate(invoice.fullyPaidOnDate)}` : null,
+        invoice.amountDue !== undefined ? `Amount Due: ${formatAmount(invoice.amountDue)}` : null,
+        invoice.amountPaid !== undefined ? `Amount Paid: ${formatAmount(invoice.amountPaid)}` : null,
+        invoice.amountCredited !== undefined ? `Amount Credited: ${formatAmount(invoice.amountCredited)}` : null,
+        invoice.hasErrors ? "Has Errors: Yes" : null,
+        invoice.isDiscounted ? "Is Discounted: Yes" : null,
+        returnLineItems && invoice.lineItems?.length
+          ? `Line Items:\n${invoice.lineItems.map(formatLineItem).join("\n\n")}`
+          : null,
+      ].filter(Boolean).join("\n"),
+    );
+
     return {
-      content: [
-        { type: "text" as const, text: `Found ${invoices.length} invoices.` },
-        ...invoices.map((invoice) => ({
-          type: "text" as const,
-          text: [
-            "---",
-            `Invoice ID: ${invoice.invoiceID || "(none)"}`,
-            `Invoice: ${invoice.invoiceNumber || "(none)"}`,
-            invoice.reference ? `Reference: ${invoice.reference}` : null,
-            `Type: ${invoice.type || "Unknown"}`,
-            `Status: ${invoice.status || "Unknown"}`,
-            invoice.contact
-              ? `Contact: ${invoice.contact.name || "(unnamed)"} (${invoice.contact.contactID || "Unknown ID"})`
-              : null,
-            invoice.date ? `Date: ${formatXeroDate(invoice.date)}` : null,
-            invoice.dueDate ? `Due Date: ${formatXeroDate(invoice.dueDate)}` : null,
-            invoice.lineAmountTypes ? `Line Amount Types: ${invoice.lineAmountTypes}` : null,
-            invoice.subTotal !== undefined ? `Sub Total: ${formatAmount(invoice.subTotal)}` : null,
-            invoice.totalTax !== undefined ? `Total Tax: ${formatAmount(invoice.totalTax)}` : null,
-            `Total: ${formatAmount(invoice.total)}`,
-            invoice.totalDiscount !== undefined ? `Total Discount: ${formatAmount(invoice.totalDiscount)}` : null,
-            invoice.currencyCode ? `Currency: ${invoice.currencyCode}` : null,
-            invoice.currencyRate !== undefined ? `Currency Rate: ${invoice.currencyRate}` : null,
-            invoice.updatedDateUTC ? `Last Updated: ${formatXeroDate(invoice.updatedDateUTC)}` : null,
-            invoice.fullyPaidOnDate ? `Fully Paid On: ${formatXeroDate(invoice.fullyPaidOnDate)}` : null,
-            invoice.amountDue !== undefined ? `Amount Due: ${formatAmount(invoice.amountDue)}` : null,
-            invoice.amountPaid !== undefined ? `Amount Paid: ${formatAmount(invoice.amountPaid)}` : null,
-            invoice.amountCredited !== undefined ? `Amount Credited: ${formatAmount(invoice.amountCredited)}` : null,
-            invoice.hasErrors ? "Has Errors: Yes" : null,
-            invoice.isDiscounted ? "Is Discounted: Yes" : null,
-            returnLineItems && invoice.lineItems?.length
-              ? `Line Items:\n${invoice.lineItems.map(formatLineItem).join("\n\n")}`
-              : null,
-          ].filter(Boolean).join("\n"),
-        })),
-      ],
+      content: [{
+        type: "text" as const,
+        text: [header, ...records.map((record) => `---\n${record}`)].join("\n\n"),
+      }],
     };
   },
 );
