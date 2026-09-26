@@ -14,7 +14,7 @@ const DeletePrepaymentAllocationTool = CreateXeroTool(
     if (response.isError) {
       return { content: [{ type: "text" as const, text: `Error deleting prepayment allocation: ${response.error}` }] };
     }
-    return { content: [{ type: "text" as const, text: ["Prepayment allocation deletion requested successfully.", JSON.stringify(response.result, null, 2), "Read the prepayment and invoice/bill back from Xero to verify the reversal."].join("\n") }] };
+    return { content: [{ type: "text" as const, text: ["Prepayment allocation deleted successfully.", JSON.stringify(response.result, null, 2), "Read the prepayment and invoice/bill back from Xero to verify the reversal."].join("\n") }] };
   },
 );
 
