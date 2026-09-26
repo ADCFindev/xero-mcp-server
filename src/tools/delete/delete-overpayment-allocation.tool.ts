@@ -14,7 +14,7 @@ const DeleteOverpaymentAllocationTool = CreateXeroTool(
     if (response.isError) {
       return { content: [{ type: "text" as const, text: `Error deleting overpayment allocation: ${response.error}` }] };
     }
-    return { content: [{ type: "text" as const, text: ["Overpayment allocation deletion requested successfully.", JSON.stringify(response.result, null, 2), "Read the overpayment and invoice/bill back from Xero to verify the reversal."].join("\n") }] };
+    return { content: [{ type: "text" as const, text: ["Overpayment allocation deleted successfully.", JSON.stringify(response.result, null, 2), "Read the overpayment and invoice/bill back from Xero to verify the reversal."].join("\n") }] };
   },
 );
 
