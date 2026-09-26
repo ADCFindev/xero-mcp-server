@@ -5,7 +5,7 @@ import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
 
 const CreateBatchPaymentTool = CreateXeroTool(
   "create-batch-payment",
-  "Create one Xero batch payment that allocates a single bank-account payment across multiple approved invoices or bills. Use the same bank account and batch date for all allocations. Verify the returned batch and affected invoices after creation.",
+  "Create one Xero batch payment that allocates a single bank-account payment across multiple approved invoices or bills. Use the same bank account and batch date for all allocations. Reference is optional because Xero only permits batch-payment references for some organisation versions, including NZ. Always verify the returned batch and affected invoices after creation.",
   {
     accountId: z
       .string()
@@ -16,7 +16,10 @@ const CreateBatchPaymentTool = CreateXeroTool(
     reference: z
       .string()
       .min(1)
-      .describe("Reference for the batch payment, such as the bank statement reference."),
+      .optional()
+      .describe(
+        "Optional batch-payment reference. Omit for organisations that do not support batch payment references.",
+      ),
     payments: z
       .array(
         z.object({
