@@ -38,7 +38,7 @@ export function normalizeXeroOutput(value: unknown): unknown {
     if (/^\/Date\(/.test(value)) {
       return formatXeroDate(value);
     }
-    return value;
+    return value.replace(/\r\n/g, "\n");
   }
 
   if (Array.isArray(value)) {
