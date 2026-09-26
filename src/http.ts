@@ -119,10 +119,6 @@ const httpServer = http.createServer(async (req, res) => {
       return;
     }
 
-    //
-    // Stateless MCP request:
-    // new server + new transport for each HTTP request
-    //
     const mcpServer = XeroMcpServer.GetServer();
     ToolFactory(mcpServer);
 
