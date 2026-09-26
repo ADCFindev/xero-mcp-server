@@ -101,13 +101,33 @@ function allocationErrors(allocation?: XeroAllocation): string[] {
   return messages;
 }
 
+function normalizeAllocation(allocation: XeroAllocation): XeroAllocation {
+  const normalized = { ...allocation };
+
+  // Xero can return its zero/default .NET date in create-allocation responses.
+  // It is not a meaningful accounting date, so omit it and rely on read-back.
+  if (
+    normalized.Date === "/Date(-62135596800000)/" ||
+    normalized.Date === "0001-01-01" ||
+    normalized.Date === "0001-01-01T00:00:00"
+  ) {
+    delete normalized.Date;
+  }
+
+  return normalized;
+}
+
 function parseAllocationResponse(data: unknown): XeroAllocation | null {
   if (!data || typeof data !== "object") return null;
   const record = data as Record<string, unknown>;
+
   if (Array.isArray(record.Allocations)) {
-    return (record.Allocations[0] as XeroAllocation | undefined) ?? null;
+    const allocation =
+      (record.Allocations[0] as XeroAllocation | undefined) ?? null;
+    return allocation ? normalizeAllocation(allocation) : null;
   }
-  return data as XeroAllocation;
+
+  return normalizeAllocation(data as XeroAllocation);
 }
 
 export async function listXeroPrepayments(params?: {
