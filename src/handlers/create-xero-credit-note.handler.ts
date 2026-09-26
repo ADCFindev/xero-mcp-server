@@ -12,55 +12,79 @@ interface CreditNoteLineItem {
   taxType: string;
 }
 
+type CreditNoteType = "ACCRECCREDIT" | "ACCPAYCREDIT";
+type CreditNoteStatus = "DRAFT" | "AUTHORISED";
+
 async function createCreditNote(
   contactId: string,
   lineItems: CreditNoteLineItem[],
   reference: string | undefined,
+  type: CreditNoteType,
+  status: CreditNoteStatus,
+  date?: string,
 ): Promise<CreditNote | undefined> {
   await xeroClient.authenticate();
 
   const creditNote: CreditNote = {
-    type: CreditNote.TypeEnum.ACCRECCREDIT,
+    type:
+      type === "ACCPAYCREDIT"
+        ? CreditNote.TypeEnum.ACCPAYCREDIT
+        : CreditNote.TypeEnum.ACCRECCREDIT,
     contact: {
       contactID: contactId,
     },
-    lineItems: lineItems,
-    date: new Date().toISOString().split("T")[0], // Today's date
-    reference: reference,
-    status: CreditNote.StatusEnum.DRAFT,
+    lineItems,
+    date: date || new Date().toISOString().split("T")[0],
+    reference,
+    status:
+      status === "AUTHORISED"
+        ? CreditNote.StatusEnum.AUTHORISED
+        : CreditNote.StatusEnum.DRAFT,
   };
 
   const response = await xeroClient.accountingApi.createCreditNotes(
     xeroClient.tenantId,
     {
       creditNotes: [creditNote],
-    }, // creditNotes
-    true, // summarizeErrors
-    undefined, // unitdp
-    undefined, // idempotencyKey
+    },
+    true,
+    undefined,
+    undefined,
     getClientHeaders(),
   );
-  const createdCreditNote = response.body.creditNotes?.[0];
-  return createdCreditNote;
+
+  return response.body.creditNotes?.[0];
 }
 
-/**
- * Create a new credit note in Xero
- */
 export async function createXeroCreditNote(
   contactId: string,
   lineItems: CreditNoteLineItem[],
   reference?: string,
+  type: CreditNoteType = "ACCRECCREDIT",
+  status: CreditNoteStatus = "DRAFT",
+  date?: string,
 ): Promise<XeroClientResponse<CreditNote>> {
   try {
     const createdCreditNote = await createCreditNote(
       contactId,
       lineItems,
       reference,
+      type,
+      status,
+      date,
     );
 
     if (!createdCreditNote) {
       throw new Error("Credit note creation failed.");
+    }
+
+    if (createdCreditNote.validationErrors?.length) {
+      throw new Error(
+        createdCreditNote.validationErrors
+          .map((error) => error.message)
+          .filter(Boolean)
+          .join(" "),
+      );
     }
 
     return {
