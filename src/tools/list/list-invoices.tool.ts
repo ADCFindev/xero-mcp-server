@@ -74,9 +74,9 @@ const ListInvoicesTool = CreateXeroTool(
             invoice.fullyPaidOnDate
               ? `Fully Paid On: ${invoice.fullyPaidOnDate}`
               : null,
-            invoice.amountDue ? `Amount Due: ${invoice.amountDue}` : null,
-            invoice.amountPaid ? `Amount Paid: ${invoice.amountPaid}` : null,
-            invoice.amountCredited
+            invoice.amountDue !== undefined ? `Amount Due: ${invoice.amountDue}` : null,
+            invoice.amountPaid !== undefined ? `Amount Paid: ${invoice.amountPaid}` : null,
+            invoice.amountCredited !== undefined
               ? `Amount Credited: ${invoice.amountCredited}`
               : null,
             invoice.hasErrors ? "Has Errors: Yes" : null,
