@@ -8,7 +8,7 @@ async function deletePayment(paymentId: string): Promise<boolean> {
   await xeroClient.authenticate();
 
   const paymentDelete: PaymentDelete = {
-    status: PaymentDelete.StatusEnum.DELETED,
+    status: "DELETED",
   };
 
   await xeroClient.accountingApi.deletePayment(
