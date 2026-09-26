@@ -6,7 +6,6 @@ import { formatAmount, formatXeroDate } from "../../helpers/format-xero-output.j
 
 function paymentFormatter(payment: Payment): string {
   return [
-    "---",
     `Payment ID: ${payment.paymentID || "Unknown"}`,
     `Date: ${formatXeroDate(payment.date) || "Unknown date"}`,
     `Amount: ${formatAmount(payment.amount)}`,
@@ -54,11 +53,14 @@ const ListPaymentsTool = CreateXeroTool(
       return { content: [{ type: "text" as const, text: "Found 0 payments." }] };
     }
 
+    const header = `Found ${payments.length} ${payments.length === 1 ? "payment" : "payments"}.`;
+    const records = payments.map(paymentFormatter);
+
     return {
-      content: [
-        { type: "text" as const, text: `Found ${payments.length} payments.` },
-        ...payments.map((payment) => ({ type: "text" as const, text: paymentFormatter(payment) })),
-      ],
+      content: [{
+        type: "text" as const,
+        text: [header, ...records.map((record) => `---\n${record}`)].join("\n\n"),
+      }],
     };
   },
 );
