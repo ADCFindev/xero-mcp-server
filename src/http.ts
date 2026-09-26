@@ -15,6 +15,16 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.url === "/mcp") {
+    const apiKey = req.headers["x-api-key"];
+
+    if (!process.env.MCP_API_KEY || apiKey !== process.env.MCP_API_KEY) {
+      res.writeHead(401, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "Unauthorized" }));
+      return;
+    }
+  }
+
   if (req.url === "/mcp" && req.method === "POST") {
     const chunks: Buffer[] = [];
 
@@ -23,7 +33,18 @@ const httpServer = http.createServer(async (req, res) => {
     }
 
     const bodyText = Buffer.concat(chunks).toString("utf8");
-    const body = bodyText ? JSON.parse(bodyText) : undefined;
+
+    let body: unknown = undefined;
+
+    if (bodyText) {
+      try {
+        body = JSON.parse(bodyText);
+      } catch {
+        res.writeHead(400, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid JSON" }));
+        return;
+      }
+    }
 
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
