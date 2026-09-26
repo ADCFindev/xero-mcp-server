@@ -46,6 +46,7 @@ const ListBankTransactionsTool = CreateXeroTool(
               ? `Contact: ${transaction.contact.name} (${transaction.contact.contactID})`
               : null,
             transaction.reference ? `Reference: ${transaction.reference}` : null,
+            transaction.type ? `Type: ${transaction.type}` : null,
             transaction.date ? `Date: ${transaction.date}` : null,
             transaction.subTotal ? `Sub Total: ${transaction.subTotal}` : null,
             transaction.totalTax ? `Total Tax: ${transaction.totalTax}` : null,
