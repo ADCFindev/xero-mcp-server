@@ -2,92 +2,65 @@ import { z } from "zod";
 import { listXeroInvoices } from "../../handlers/list-xero-invoices.handler.js";
 import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
 import { formatLineItem } from "../../helpers/format-line-item.js";
+import { formatAmount, formatXeroDate } from "../../helpers/format-xero-output.js";
 
 const ListInvoicesTool = CreateXeroTool(
   "list-invoices",
-  "List invoices in Xero. This includes Draft, Submitted, and Paid invoices. \
-  Ask the user if they want to see invoices for a specific contact, \
-  invoice number, or to see all invoices before running. \
-  Ask the user if they want the next page of invoices after running this tool \
-  if 10 invoices are returned. \
-  If they want the next page, call this tool again with the next page number \
-  and the contact or invoice number if one was provided in the previous call.",
+  "List invoices in Xero. This includes Draft, Submitted, and Paid invoices. Ask whether to filter by contact or invoice number when useful.",
   {
     page: z.number(),
     contactIds: z.array(z.string()).optional(),
-    invoiceNumbers: z
-      .array(z.string())
-      .optional()
-      .describe("If provided, invoice line items will also be returned"),
+    invoiceNumbers: z.array(z.string()).optional().describe("If provided, invoice line items will also be returned"),
   },
   async ({ page, contactIds, invoiceNumbers }) => {
     const response = await listXeroInvoices(page, contactIds, invoiceNumbers);
     if (response.error !== null) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Error listing invoices: ${response.error}`,
-          },
-        ],
-      };
+      return { content: [{ type: "text" as const, text: `Error listing invoices: ${response.error}` }] };
     }
 
-    const invoices = response.result;
+    const invoices = response.result ?? [];
     const returnLineItems = (invoiceNumbers?.length ?? 0) > 0;
+
+    if (invoices.length === 0) {
+      return { content: [{ type: "text" as const, text: "Found 0 invoices." }] };
+    }
 
     return {
       content: [
-        {
-          type: "text" as const,
-          text: `Found ${invoices?.length || 0} invoices:`,
-        },
-        ...(invoices?.map((invoice) => ({
+        { type: "text" as const, text: `Found ${invoices.length} invoices.` },
+        ...invoices.map((invoice) => ({
           type: "text" as const,
           text: [
-            `Invoice ID: ${invoice.invoiceID}`,
-            `Invoice: ${invoice.invoiceNumber}`,
+            "---",
+            `Invoice ID: ${invoice.invoiceID || "(none)"}`,
+            `Invoice: ${invoice.invoiceNumber || "(none)"}`,
             invoice.reference ? `Reference: ${invoice.reference}` : null,
             `Type: ${invoice.type || "Unknown"}`,
             `Status: ${invoice.status || "Unknown"}`,
             invoice.contact
-              ? `Contact: ${invoice.contact.name} (${invoice.contact.contactID})`
+              ? `Contact: ${invoice.contact.name || "(unnamed)"} (${invoice.contact.contactID || "Unknown ID"})`
               : null,
-            invoice.date ? `Date: ${invoice.date}` : null,
-            invoice.dueDate ? `Due Date: ${invoice.dueDate}` : null,
-            invoice.lineAmountTypes
-              ? `Line Amount Types: ${invoice.lineAmountTypes}`
-              : null,
-            invoice.subTotal ? `Sub Total: ${invoice.subTotal}` : null,
-            invoice.totalTax ? `Total Tax: ${invoice.totalTax}` : null,
-            `Total: ${invoice.total || 0}`,
-            invoice.totalDiscount
-              ? `Total Discount: ${invoice.totalDiscount}`
-              : null,
+            invoice.date ? `Date: ${formatXeroDate(invoice.date)}` : null,
+            invoice.dueDate ? `Due Date: ${formatXeroDate(invoice.dueDate)}` : null,
+            invoice.lineAmountTypes ? `Line Amount Types: ${invoice.lineAmountTypes}` : null,
+            invoice.subTotal !== undefined ? `Sub Total: ${formatAmount(invoice.subTotal)}` : null,
+            invoice.totalTax !== undefined ? `Total Tax: ${formatAmount(invoice.totalTax)}` : null,
+            `Total: ${formatAmount(invoice.total)}`,
+            invoice.totalDiscount !== undefined ? `Total Discount: ${formatAmount(invoice.totalDiscount)}` : null,
             invoice.currencyCode ? `Currency: ${invoice.currencyCode}` : null,
-            invoice.currencyRate
-              ? `Currency Rate: ${invoice.currencyRate}`
-              : null,
-            invoice.updatedDateUTC
-              ? `Last Updated: ${invoice.updatedDateUTC}`
-              : null,
-            invoice.fullyPaidOnDate
-              ? `Fully Paid On: ${invoice.fullyPaidOnDate}`
-              : null,
-            invoice.amountDue !== undefined ? `Amount Due: ${invoice.amountDue}` : null,
-            invoice.amountPaid !== undefined ? `Amount Paid: ${invoice.amountPaid}` : null,
-            invoice.amountCredited !== undefined
-              ? `Amount Credited: ${invoice.amountCredited}`
-              : null,
+            invoice.currencyRate !== undefined ? `Currency Rate: ${invoice.currencyRate}` : null,
+            invoice.updatedDateUTC ? `Last Updated: ${formatXeroDate(invoice.updatedDateUTC)}` : null,
+            invoice.fullyPaidOnDate ? `Fully Paid On: ${formatXeroDate(invoice.fullyPaidOnDate)}` : null,
+            invoice.amountDue !== undefined ? `Amount Due: ${formatAmount(invoice.amountDue)}` : null,
+            invoice.amountPaid !== undefined ? `Amount Paid: ${formatAmount(invoice.amountPaid)}` : null,
+            invoice.amountCredited !== undefined ? `Amount Credited: ${formatAmount(invoice.amountCredited)}` : null,
             invoice.hasErrors ? "Has Errors: Yes" : null,
             invoice.isDiscounted ? "Is Discounted: Yes" : null,
-            returnLineItems
-              ? `Line Items: ${invoice.lineItems?.map(formatLineItem)}`
+            returnLineItems && invoice.lineItems?.length
+              ? `Line Items:\n${invoice.lineItems.map(formatLineItem).join("\n\n")}`
               : null,
-          ]
-            .filter(Boolean)
-            .join("\n"),
-        })) || []),
+          ].filter(Boolean).join("\n"),
+        })),
       ],
     };
   },
