@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { getXeroOverpayment } from "../../handlers/xero-prepayments-overpayments-api.js";
 import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
+import { normalizeXeroOutput } from "../../helpers/format-xero-output.js";
 
 const GetOverpaymentTool = CreateXeroTool(
   "get-overpayment",
@@ -11,7 +12,7 @@ const GetOverpaymentTool = CreateXeroTool(
     if (response.isError) {
       return { content: [{ type: "text" as const, text: `Error getting overpayment: ${response.error}` }] };
     }
-    return { content: [{ type: "text" as const, text: JSON.stringify(response.result, null, 2) }] };
+    return { content: [{ type: "text" as const, text: JSON.stringify(normalizeXeroOutput(response.result), null, 2) }] };
   },
 );
 
