@@ -191,21 +191,35 @@ export async function addXeroHistoryNote(params: {
       "HistoryRecords",
     );
 
-    const readBack = await getXeroHistory(params.resource, params.resourceId);
-    if (readBack.isError) {
-      throw new Error(
-        `History note write returned successfully, but read-back failed: ${readBack.error}`,
-      );
-    }
+    let historyAfterWrite: HistoryRecord[] = [];
+    let verified = false;
+    let lastReadError: string | null = null;
 
-    const historyAfterWrite = readBack.result ?? [];
-    const verified = historyAfterWrite.some(
-      (record) => record.Details === params.details,
-    );
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (attempt > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      const readBack = await getXeroHistory(params.resource, params.resourceId);
+
+      if (readBack.isError) {
+        lastReadError = readBack.error;
+        continue;
+      }
+
+      historyAfterWrite = readBack.result ?? [];
+      verified = historyAfterWrite.some(
+        (record) => record.Details === params.details,
+      );
+
+      if (verified) break;
+    }
 
     if (!verified) {
       throw new Error(
-        "History note could not be verified by exact Details text on read-back.",
+        lastReadError
+          ? `History note write returned successfully, but read-back failed after retries: ${lastReadError}`
+          : "History note could not be verified by exact Details text after 3 read-back attempts.",
       );
     }
 
