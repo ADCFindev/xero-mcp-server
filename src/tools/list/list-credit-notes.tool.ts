@@ -21,33 +21,34 @@ const ListCreditNotesTool = CreateXeroTool(
       return { content: [{ type: "text" as const, text: "Found 0 credit notes." }] };
     }
 
+    const header = `Found ${creditNotes.length} ${creditNotes.length === 1 ? "credit note" : "credit notes"}.`;
+    const records = creditNotes.map((creditNote) =>
+      [
+        `Credit Note ID: ${creditNote.creditNoteID || "(none)"}`,
+        `Credit Note Number: ${creditNote.creditNoteNumber || "(none)"}`,
+        creditNote.reference ? `Reference: ${creditNote.reference}` : null,
+        `Type: ${creditNote.type || "Unknown"}`,
+        `Status: ${creditNote.status || "Unknown"}`,
+        creditNote.contact
+          ? `Contact: ${creditNote.contact.name || "(unnamed)"} (${creditNote.contact.contactID || "Unknown ID"})`
+          : null,
+        creditNote.date ? `Date: ${formatXeroDate(creditNote.date)}` : null,
+        creditNote.lineAmountTypes ? `Line Amount Types: ${creditNote.lineAmountTypes}` : null,
+        creditNote.subTotal !== undefined ? `Sub Total: ${formatAmount(creditNote.subTotal)}` : null,
+        creditNote.totalTax !== undefined ? `Total Tax: ${formatAmount(creditNote.totalTax)}` : null,
+        `Total: ${formatAmount(creditNote.total)}`,
+        creditNote.remainingCredit !== undefined ? `Remaining Credit: ${formatAmount(creditNote.remainingCredit)}` : null,
+        creditNote.currencyCode ? `Currency: ${creditNote.currencyCode}` : null,
+        creditNote.currencyRate !== undefined ? `Currency Rate: ${creditNote.currencyRate}` : null,
+        creditNote.updatedDateUTC ? `Last Updated: ${formatXeroDate(creditNote.updatedDateUTC)}` : null,
+      ].filter(Boolean).join("\n"),
+    );
+
     return {
-      content: [
-        { type: "text" as const, text: `Found ${creditNotes.length} credit notes.` },
-        ...creditNotes.map((creditNote) => ({
-          type: "text" as const,
-          text: [
-            "---",
-            `Credit Note ID: ${creditNote.creditNoteID || "(none)"}`,
-            `Credit Note Number: ${creditNote.creditNoteNumber || "(none)"}`,
-            creditNote.reference ? `Reference: ${creditNote.reference}` : null,
-            `Type: ${creditNote.type || "Unknown"}`,
-            `Status: ${creditNote.status || "Unknown"}`,
-            creditNote.contact
-              ? `Contact: ${creditNote.contact.name || "(unnamed)"} (${creditNote.contact.contactID || "Unknown ID"})`
-              : null,
-            creditNote.date ? `Date: ${formatXeroDate(creditNote.date)}` : null,
-            creditNote.lineAmountTypes ? `Line Amount Types: ${creditNote.lineAmountTypes}` : null,
-            creditNote.subTotal !== undefined ? `Sub Total: ${formatAmount(creditNote.subTotal)}` : null,
-            creditNote.totalTax !== undefined ? `Total Tax: ${formatAmount(creditNote.totalTax)}` : null,
-            `Total: ${formatAmount(creditNote.total)}`,
-            creditNote.remainingCredit !== undefined ? `Remaining Credit: ${formatAmount(creditNote.remainingCredit)}` : null,
-            creditNote.currencyCode ? `Currency: ${creditNote.currencyCode}` : null,
-            creditNote.currencyRate !== undefined ? `Currency Rate: ${creditNote.currencyRate}` : null,
-            creditNote.updatedDateUTC ? `Last Updated: ${formatXeroDate(creditNote.updatedDateUTC)}` : null,
-          ].filter(Boolean).join("\n"),
-        })),
-      ],
+      content: [{
+        type: "text" as const,
+        text: [header, ...records.map((record) => `---\n${record}`)].join("\n\n"),
+      }],
     };
   },
 );
