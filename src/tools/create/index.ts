@@ -2,6 +2,7 @@ import CreateBankTransactionTool from "./create-bank-transaction.tool.js";
 import CreateBankTransferTool from "./create-bank-transfer.tool.js";
 import AllocatePrepaymentTool from "./allocate-prepayment.tool.js";
 import AllocateOverpaymentTool from "./allocate-overpayment.tool.js";
+import AllocateCreditNoteTool from "./allocate-credit-note.tool.js";
 import CreateBatchPaymentTool from "./create-batch-payment.tool.js";
 import CreateContactTool from "./create-contact.tool.js";
 import CreateCreditNoteTool from "./create-credit-note.tool.js";
@@ -26,6 +27,7 @@ export const CreateTools = [
   CreateBankTransferTool,
   AllocatePrepaymentTool,
   AllocateOverpaymentTool,
+  AllocateCreditNoteTool,
   CreateBatchPaymentTool,
   CreatePayrollTimesheetTool,
   CreateTrackingCategoryTool,
