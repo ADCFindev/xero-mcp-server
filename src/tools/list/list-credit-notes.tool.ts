@@ -1,16 +1,11 @@
 import { z } from "zod";
 import { listXeroCreditNotes } from "../../handlers/list-xero-credit-notes.handler.js";
 import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
+import { formatAmount, formatXeroDate } from "../../helpers/format-xero-output.js";
 
 const ListCreditNotesTool = CreateXeroTool(
   "list-credit-notes",
-  `List credit notes in Xero. 
-  Ask the user if they want to see credit notes for a specific contact,
-  or to see all credit notes before running. 
-  Ask the user if they want the next page of credit notes after running this tool 
-  if 10 credit notes are returned. 
-  If they want the next page, call this tool again with the next page number 
-  and the contact if one was provided in the previous call.`,
+  "List credit notes in Xero. Can optionally filter by contact.",
   {
     page: z.number(),
     contactId: z.string().optional(),
@@ -18,55 +13,40 @@ const ListCreditNotesTool = CreateXeroTool(
   async ({ page, contactId }) => {
     const response = await listXeroCreditNotes(page, contactId);
     if (response.error !== null) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Error listing credit notes: ${response.error}`,
-          },
-        ],
-      };
+      return { content: [{ type: "text" as const, text: `Error listing credit notes: ${response.error}` }] };
     }
 
-    const creditNotes = response.result;
+    const creditNotes = response.result ?? [];
+    if (creditNotes.length === 0) {
+      return { content: [{ type: "text" as const, text: "Found 0 credit notes." }] };
+    }
 
     return {
       content: [
-        {
-          type: "text" as const,
-          text: `Found ${creditNotes?.length || 0} credit notes:`,
-        },
-        ...(creditNotes?.map((creditNote) => ({
+        { type: "text" as const, text: `Found ${creditNotes.length} credit notes.` },
+        ...creditNotes.map((creditNote) => ({
           type: "text" as const,
           text: [
-            `Credit Note ID: ${creditNote.creditNoteID}`,
-            `Credit Note Number: ${creditNote.creditNoteNumber}`,
+            "---",
+            `Credit Note ID: ${creditNote.creditNoteID || "(none)"}`,
+            `Credit Note Number: ${creditNote.creditNoteNumber || "(none)"}`,
             creditNote.reference ? `Reference: ${creditNote.reference}` : null,
             `Type: ${creditNote.type || "Unknown"}`,
             `Status: ${creditNote.status || "Unknown"}`,
             creditNote.contact
-              ? `Contact: ${creditNote.contact.name} (${creditNote.contact.contactID})`
+              ? `Contact: ${creditNote.contact.name || "(unnamed)"} (${creditNote.contact.contactID || "Unknown ID"})`
               : null,
-            creditNote.date ? `Date: ${creditNote.date}` : null,
-            creditNote.lineAmountTypes
-              ? `Line Amount Types: ${creditNote.lineAmountTypes}`
-              : null,
-            creditNote.subTotal ? `Sub Total: ${creditNote.subTotal}` : null,
-            creditNote.totalTax ? `Total Tax: ${creditNote.totalTax}` : null,
-            `Total: ${creditNote.total || 0}`,
-            creditNote.currencyCode
-              ? `Currency: ${creditNote.currencyCode}`
-              : null,
-            creditNote.currencyRate
-              ? `Currency Rate: ${creditNote.currencyRate}`
-              : null,
-            creditNote.updatedDateUTC
-              ? `Last Updated: ${creditNote.updatedDateUTC}`
-              : null,
-          ]
-            .filter(Boolean)
-            .join("\n"),
-        })) || []),
+            creditNote.date ? `Date: ${formatXeroDate(creditNote.date)}` : null,
+            creditNote.lineAmountTypes ? `Line Amount Types: ${creditNote.lineAmountTypes}` : null,
+            creditNote.subTotal !== undefined ? `Sub Total: ${formatAmount(creditNote.subTotal)}` : null,
+            creditNote.totalTax !== undefined ? `Total Tax: ${formatAmount(creditNote.totalTax)}` : null,
+            `Total: ${formatAmount(creditNote.total)}`,
+            creditNote.remainingCredit !== undefined ? `Remaining Credit: ${formatAmount(creditNote.remainingCredit)}` : null,
+            creditNote.currencyCode ? `Currency: ${creditNote.currencyCode}` : null,
+            creditNote.currencyRate !== undefined ? `Currency Rate: ${creditNote.currencyRate}` : null,
+            creditNote.updatedDateUTC ? `Last Updated: ${formatXeroDate(creditNote.updatedDateUTC)}` : null,
+          ].filter(Boolean).join("\n"),
+        })),
       ],
     };
   },
