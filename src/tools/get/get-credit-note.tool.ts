@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { getXeroCreditNote } from "../../handlers/xero-credit-note-allocations-api.js";
 import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
+import { normalizeXeroOutput } from "../../helpers/format-xero-output.js";
 
 const GetCreditNoteTool = CreateXeroTool(
   "get-credit-note",
@@ -27,7 +28,7 @@ const GetCreditNoteTool = CreateXeroTool(
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(response.result, null, 2),
+          text: JSON.stringify(normalizeXeroOutput(response.result), null, 2),
         },
       ],
     };
