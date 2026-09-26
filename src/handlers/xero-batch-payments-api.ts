@@ -33,6 +33,7 @@ export type XeroBatchPayment = {
   }>;
   Type?: string;
   Status?: string;
+  StatusAttributeString?: string;
   TotalAmount?: number;
   UpdatedDateUTC?: string;
   IsReconciled?: boolean;
@@ -40,6 +41,8 @@ export type XeroBatchPayment = {
 };
 
 type BatchPaymentsEnvelope = {
+  Status?: string;
+  StatusAttributeString?: string;
   BatchPayments?: XeroBatchPayment[];
 };
 
@@ -63,6 +66,30 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
     Accept: "application/json",
     "Content-Type": "application/json",
   };
+}
+
+function extractValidationErrors(
+  envelope: BatchPaymentsEnvelope,
+): string[] {
+  const messages: string[] = [];
+
+  if (envelope.StatusAttributeString === "ERROR") {
+    messages.push("Xero returned StatusAttributeString=ERROR.");
+  }
+
+  for (const batch of envelope.BatchPayments ?? []) {
+    if (batch.StatusAttributeString === "ERROR") {
+      messages.push("Batch payment returned StatusAttributeString=ERROR.");
+    }
+
+    for (const validationError of batch.ValidationErrors ?? []) {
+      if (validationError.Message) {
+        messages.push(validationError.Message);
+      }
+    }
+  }
+
+  return messages;
 }
 
 export async function listXeroBatchPayments(
@@ -100,33 +127,31 @@ export async function listXeroBatchPayments(
 export async function createXeroBatchPayment(params: {
   accountId: string;
   date: string;
-  reference: string;
+  reference?: string;
   payments: BatchPaymentAllocation[];
 }): Promise<XeroClientResponse<XeroBatchPayment[]>> {
   try {
     const headers = await getAuthHeaders();
 
-    const body = {
-      BatchPayments: [
-        {
-          Account: {
-            AccountID: params.accountId,
-          },
-          Reference: params.reference,
-          Date: params.date,
-          Payments: params.payments.map((payment) => ({
-            Invoice: {
-              InvoiceID: payment.invoiceId,
-            },
-            Amount: payment.amount,
-          })),
+    const batchPayment = {
+      Account: {
+        AccountID: params.accountId,
+      },
+      Date: params.date,
+      Payments: params.payments.map((payment) => ({
+        Invoice: {
+          InvoiceID: payment.invoiceId,
         },
-      ],
+        Amount: payment.amount,
+      })),
+      ...(params.reference ? { Reference: params.reference } : {}),
     };
 
     const response = await axios.put<BatchPaymentsEnvelope>(
       "https://api.xero.com/api.xro/2.0/BatchPayments",
-      body,
+      {
+        BatchPayments: [batchPayment],
+      },
       {
         headers,
         params: {
@@ -135,8 +160,21 @@ export async function createXeroBatchPayment(params: {
       },
     );
 
+    const validationErrors = extractValidationErrors(response.data);
+    const batches = response.data.BatchPayments ?? [];
+
+    if (validationErrors.length > 0) {
+      throw new Error(validationErrors.join(" "));
+    }
+
+    if (batches.length === 0 || !batches.some((batch) => batch.BatchPaymentID)) {
+      throw new Error(
+        "Xero did not return a BatchPaymentID. The batch payment was not confirmed as created.",
+      );
+    }
+
     return {
-      result: response.data.BatchPayments ?? [],
+      result: batches,
       isError: false,
       error: null,
     };
@@ -164,6 +202,12 @@ export async function deleteXeroBatchPayment(
         headers,
       },
     );
+
+    const validationErrors = extractValidationErrors(response.data);
+
+    if (validationErrors.length > 0) {
+      throw new Error(validationErrors.join(" "));
+    }
 
     return {
       result: response.data.BatchPayments ?? [],
