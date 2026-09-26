@@ -86,6 +86,36 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   };
 }
 
+function enrichPrepayment(prepayment: XeroPrepayment): XeroPrepayment {
+  if (
+    prepayment.AppliedAmount === undefined &&
+    typeof prepayment.Total === "number" &&
+    typeof prepayment.RemainingCredit === "number"
+  ) {
+    return {
+      ...prepayment,
+      AppliedAmount: prepayment.Total - prepayment.RemainingCredit,
+    };
+  }
+
+  return prepayment;
+}
+
+function enrichOverpayment(overpayment: XeroOverpayment): XeroOverpayment {
+  if (
+    overpayment.AppliedAmount === undefined &&
+    typeof overpayment.Total === "number" &&
+    typeof overpayment.RemainingCredit === "number"
+  ) {
+    return {
+      ...overpayment,
+      AppliedAmount: overpayment.Total - overpayment.RemainingCredit,
+    };
+  }
+
+  return overpayment;
+}
+
 function allocationErrors(allocation?: XeroAllocation): string[] {
   if (!allocation) return [];
   const messages: string[] = [];
@@ -149,7 +179,7 @@ export async function listXeroPrepayments(params?: {
       },
     );
 
-    return { result: response.data.Prepayments ?? [], isError: false, error: null };
+    return { result: (response.data.Prepayments ?? []).map(enrichPrepayment), isError: false, error: null };
   } catch (error) {
     return { result: null, isError: true, error: formatError(error) };
   }
@@ -166,7 +196,7 @@ export async function getXeroPrepayment(
     );
 
     return {
-      result: response.data.Prepayments?.[0] ?? null,
+      result: response.data.Prepayments?.[0] ? enrichPrepayment(response.data.Prepayments[0]) : null,
       isError: false,
       error: null,
     };
@@ -246,7 +276,7 @@ export async function listXeroOverpayments(params?: {
       },
     );
 
-    return { result: response.data.Overpayments ?? [], isError: false, error: null };
+    return { result: (response.data.Overpayments ?? []).map(enrichOverpayment), isError: false, error: null };
   } catch (error) {
     return { result: null, isError: true, error: formatError(error) };
   }
@@ -263,7 +293,7 @@ export async function getXeroOverpayment(
     );
 
     return {
-      result: response.data.Overpayments?.[0] ?? null,
+      result: response.data.Overpayments?.[0] ? enrichOverpayment(response.data.Overpayments[0]) : null,
       isError: false,
       error: null,
     };
