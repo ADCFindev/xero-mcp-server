@@ -25,13 +25,13 @@ describe("formatError", () => {
   describe("AxiosError mapping", () => {
     it("maps 401 to authentication message", () => {
       expect(formatError(makeAxiosError(401))).toBe(
-        "Authentication failed. Please check your Xero credentials.",
+        "Authentication failed. For attachment endpoints, also verify that the Xero connection is authorised for the attachments scope.",
       );
     });
 
     it("maps 403 to permission message", () => {
       expect(formatError(makeAxiosError(403))).toBe(
-        "You don't have permission to access this resource in Xero.",
+        "Xero denied access to this resource. Verify the required Xero scope/permission for this endpoint.",
       );
     });
 
@@ -98,7 +98,7 @@ describe("formatError", () => {
 
       const result = formatError(sdkError);
       expect(result).toBe(
-        "Authentication failed. Please check your Xero credentials.",
+        "Authentication failed. For attachment endpoints, also verify that the Xero connection is authorised for the attachments scope.",
       );
       expect(result).not.toContain("Bearer");
     });
