@@ -1,6 +1,12 @@
 import http from "node:http";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import {
+  withXeroMcpAuthorization,
+  XeroMcpAuthorizationError,
+  XeroMcpAuthorizationUnavailableError,
+} from "./clients/xero-client.js";
+import { parseXeroMcpAuthorization } from "./helpers/xero-mcp-auth.js";
 import { ToolFactory } from "./tools/tool-factory.js";
 
 const port = Number(process.env.PORT || 3000);
@@ -13,6 +19,16 @@ function isAuthorized(req: http.IncomingMessage): boolean {
     !!process.env.MCP_API_KEY &&
     apiKey === process.env.MCP_API_KEY
   );
+}
+
+function sendError(
+  res: http.ServerResponse,
+  status: number,
+  message: string,
+): void {
+  if (res.headersSent) return;
+  res.writeHead(status, { "content-type": "application/json" });
+  res.end(JSON.stringify({ error: message }));
 }
 
 function buildServer(): McpServer {
@@ -86,6 +102,15 @@ const httpServer = http.createServer(async (req, res) => {
       return;
     }
 
+    const authorization = parseXeroMcpAuthorization(
+      req.headers.authorization,
+      req.headers["xero-tenant-id"],
+    );
+    if (!authorization) {
+      sendError(res, 401, "Xero authorization is required.");
+      return;
+    }
+
     const chunks: Buffer[] = [];
 
     for await (const chunk of req) {
@@ -111,28 +136,26 @@ const httpServer = http.createServer(async (req, res) => {
       enableJsonResponse: true,
     });
 
-    transport.onerror = (error) => {
-      console.error("MCP transport error:", error);
+    transport.onerror = () => {
+      console.error("MCP transport error.");
     };
 
-    await server.connect(transport);
-    await transport.handleRequest(req, res, body);
+    await withXeroMcpAuthorization(authorization, async () => {
+      await server.connect(transport);
+      await transport.handleRequest(req, res, body);
+    });
   } catch (error) {
-    console.error("MCP request failed:", error);
-
-    if (!res.headersSent) {
-      res.writeHead(500, {
-        "content-type": "application/json",
-      });
+    console.error("MCP request failed.");
+    if (error instanceof XeroMcpAuthorizationError) {
+      sendError(res, 403, "Xero authorization for the selected organisation was rejected.");
+      return;
     }
-
-    if (!res.writableEnded) {
-      res.end(
-        JSON.stringify({
-          error: "Internal server error",
-        })
-      );
+    if (error instanceof XeroMcpAuthorizationUnavailableError) {
+      sendError(res, 503, "Xero authorization is temporarily unavailable.");
+      return;
     }
+    sendError(res, 500, "Internal server error.");
+    if (!res.writableEnded && res.headersSent) res.end();
   }
 });
 
