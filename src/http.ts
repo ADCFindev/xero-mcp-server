@@ -141,6 +141,7 @@ const httpServer = http.createServer(async (req, res) => {
     };
 
     await withXeroMcpAuthorization(authorization, async () => {
+      res.setHeader("X-ADC-Xero-MCP-Authorization", "request-scoped-v1");
       await server.connect(transport);
       await transport.handleRequest(req, res, body);
     });
