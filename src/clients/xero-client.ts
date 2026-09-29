@@ -1,5 +1,6 @@
 import axios, { AxiosError } from "axios";
 import dotenv from "dotenv";
+import { AsyncLocalStorage } from "node:async_hooks";
 import {
   IXeroClientConfig,
   Organisation,
@@ -10,15 +11,6 @@ import {
 import { ensureError } from "../helpers/ensure-error.js";
 
 dotenv.config();
-
-const client_id = process.env.XERO_CLIENT_ID;
-const client_secret = process.env.XERO_CLIENT_SECRET;
-const bearer_token = process.env.XERO_CLIENT_BEARER_TOKEN;
-const grant_type = "client_credentials";
-
-if (!bearer_token && (!client_id || !client_secret)) {
-  throw Error("Environment Variables not set - please check your .env file");
-}
 
 abstract class MCPXeroClient extends XeroClient {
   public tenantId: string;
@@ -220,12 +212,140 @@ class BearerTokenXeroClient extends MCPXeroClient {
   }
 }
 
-export const xeroClient = bearer_token
-  ? new BearerTokenXeroClient({
-      bearerToken: bearer_token,
-    })
-  : new CustomConnectionsXeroClient({
-      clientId: client_id!,
-      clientSecret: client_secret!,
-      grantType: grant_type,
+class RequestScopedXeroClient extends MCPXeroClient {
+  constructor(
+    private readonly accessToken: string,
+    tenantId: string,
+  ) {
+    super();
+    this.tenantId = tenantId;
+    this.setTokenSet({ access_token: accessToken });
+  }
+
+  async authenticate(): Promise<void> {
+    this.setTokenSet({ access_token: this.accessToken });
+  }
+}
+
+export class XeroMcpAuthorizationError extends Error {
+  constructor() {
+    super("Xero authorization for the selected organisation was rejected.");
+    this.name = "XeroMcpAuthorizationError";
+  }
+}
+
+export class XeroMcpAuthorizationUnavailableError extends Error {
+  constructor() {
+    super("Xero authorization could not be verified right now.");
+    this.name = "XeroMcpAuthorizationUnavailableError";
+  }
+}
+
+export type XeroMcpAuthorizationContext = {
+  accessToken: string;
+  tenantId: string;
+};
+
+type XeroConnectionsLoader = (accessToken: string) => Promise<unknown>;
+
+const requestScopedClients = new AsyncLocalStorage<MCPXeroClient>();
+
+function createConfiguredXeroClient(): MCPXeroClient | null {
+  // The authenticated HTTP service must never fall back to process-wide Xero
+  // credentials. Its only Xero client is created inside the request context.
+  if (process.env.MCP_API_KEY || process.env.PORT) return null;
+
+  const client_id = process.env.XERO_CLIENT_ID;
+  const client_secret = process.env.XERO_CLIENT_SECRET;
+  const bearer_token = process.env.XERO_CLIENT_BEARER_TOKEN;
+  if (bearer_token) {
+    return new BearerTokenXeroClient({ bearerToken: bearer_token });
+  }
+  if (client_id && client_secret) {
+    return new CustomConnectionsXeroClient({
+      clientId: client_id,
+      clientSecret: client_secret,
+      grantType: "client_credentials",
     });
+  }
+  return null;
+}
+
+const configuredXeroClient = createConfiguredXeroClient();
+
+function currentXeroClient(): MCPXeroClient {
+  const client = requestScopedClients.getStore() ?? configuredXeroClient;
+  if (!client) {
+    throw new XeroMcpAuthorizationError();
+  }
+  return client;
+}
+
+async function loadXeroConnections(accessToken: string): Promise<unknown> {
+  const response = await axios.get<unknown>("https://api.xero.com/connections", {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/json",
+    },
+    timeout: 8_000,
+  });
+  return response.data;
+}
+
+export async function withXeroMcpAuthorization<T>(
+  authorization: XeroMcpAuthorizationContext,
+  operation: () => T | Promise<T>,
+  connectionsLoader: XeroConnectionsLoader = loadXeroConnections,
+): Promise<T> {
+  const { accessToken, tenantId } = authorization;
+  if (
+    typeof accessToken !== "string" ||
+    accessToken.length === 0 ||
+    accessToken.length > 8_192 ||
+    /\s/.test(accessToken) ||
+    typeof tenantId !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      tenantId,
+    )
+  ) {
+    throw new XeroMcpAuthorizationError();
+  }
+
+  let connections: unknown;
+  try {
+    connections = await connectionsLoader(accessToken);
+  } catch (error) {
+    const status = (error as AxiosError).response?.status;
+    if (status === 401 || status === 403) {
+      throw new XeroMcpAuthorizationError();
+    }
+    throw new XeroMcpAuthorizationUnavailableError();
+  }
+
+  if (
+    !Array.isArray(connections) ||
+    !connections.some(
+      (connection) =>
+        typeof connection === "object" &&
+        connection !== null &&
+        "tenantId" in connection &&
+        connection.tenantId === tenantId,
+    )
+  ) {
+    throw new XeroMcpAuthorizationError();
+  }
+
+  const client = new RequestScopedXeroClient(accessToken, tenantId);
+  return requestScopedClients.run(client, operation);
+}
+
+export const xeroClient = new Proxy({} as MCPXeroClient, {
+  get(_target, property) {
+    const client = currentXeroClient();
+    const value = Reflect.get(client, property, client);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+  set(_target, property, value) {
+    return Reflect.set(currentXeroClient(), property, value);
+  },
+});

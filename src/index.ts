@@ -15,7 +15,7 @@ const main = async () => {
   await server.connect(transport);
 };
 
-main().catch((error) => {
-  console.error("Error:", error);
+main().catch(() => {
+  console.error("Xero MCP startup failed.");
   process.exit(1);
 });
