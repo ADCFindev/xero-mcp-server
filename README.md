@@ -2,6 +2,17 @@
 
 This is a Model Context Protocol (MCP) server implementation for Xero. It provides a bridge between the MCP protocol and Xero's API, allowing for standardized access to Xero's accounting and business features.
 
+## ADC Findev: multi-client OAuth mode (HTTP server)
+
+`src/http.ts` supports two ways of calling `/mcp`:
+
+1. **x-api-key mode** (unchanged): send `x-api-key: $MCP_API_KEY`, `Authorization: Bearer <Xero access token>` and `xero-tenant-id`.
+2. **OAuth mode** for claude.ai custom connectors: the connector discovers `/.well-known/oauth-protected-resource/mcp`, registers itself (`/register`), and the user signs in to Xero through `/authorize` → Xero → `/callback`. The server keeps the user's Xero tokens (encrypted) and refreshes them itself.
+
+OAuth mode needs a Xero **Web app** (not a Custom Connection) with redirect URI `<PUBLIC_BASE_URL>/callback`, a volume for the token store, and these variables: `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY` (32+ chars), `ALLOWED_XERO_EMAILS` (comma-separated Xero login emails allowed to connect), optionally `PUBLIC_BASE_URL` (defaults to `https://$RAILWAY_PUBLIC_DOMAIN`), `XERO_SCOPES` and `OAUTH_STORE_PATH`.
+
+Every Xero tool gets an optional `organisation` argument (name or tenant ID). Extra tools: `list-organisations`, `set-default-organisation`, `connect-organisation`. To connect another client organisation, open `<PUBLIC_BASE_URL>/connect`, sign in to Xero and pick the organisation.
+
 ## Features
 
 - Xero OAuth2 authentication with custom connections
