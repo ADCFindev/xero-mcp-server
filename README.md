@@ -13,6 +13,8 @@ OAuth mode needs a Xero **Web app** (not a Custom Connection) with redirect URI 
 
 Every Xero tool gets an optional `organisation` argument (name or tenant ID). Extra tools: `list-organisations`, `set-default-organisation`, `connect-organisation`. To connect another client organisation, open `<PUBLIC_BASE_URL>/connect`, sign in to Xero and pick the organisation.
 
+`list-account-transactions` reads `/Journals`, which needs the `accounting.journals.read` scope. Xero restricts that scope (the app needs Journals API access), so it is not requested by default: once the Xero app has access, add `accounting.journals.read` to `XERO_SCOPES`, then reconnect through `/connect` so the stored token carries it. Asking for the scope before the app has access can make Xero reject the sign-in.
+
 ## Features
 
 - Xero OAuth2 authentication with custom connections
@@ -148,7 +150,8 @@ payroll.timesheets
 
 ### Available MCP Commands
 
-- `list-accounts`: Retrieve a list of accounts
+- `list-accounts`: Retrieve a list of accounts (compact one-line-per-account by default; `format: "full"` for details)
+- `list-account-transactions`: General ledger lines for one or more accounts in a date range (the Account Transactions report), built from Xero journals. Needs the `accounting.journals.read` scope
 - `list-contacts`: Retrieve a list of contacts from Xero
 - `list-credit-notes`: Retrieve a list of credit notes
 - `list-invoices`: Retrieve a list of invoices
@@ -159,7 +162,7 @@ payroll.timesheets
 - `list-quotes`: Retrieve a list of quotes
 - `list-tax-rates`: Retrieve a list of tax rates
 - `list-payments`: Retrieve a list of payments
-- `list-trial-balance`: Retrieve a trial balance report
+- `list-trial-balance`: Retrieve a trial balance report (compact one-line-per-account by default; `format: "full"` for raw rows)
 - `list-bank-transactions`: Retrieve a list of bank account transactions
 - `list-payroll-employees`: Retrieve a list of Payroll Employees
 - `list-report-balance-sheet`: Retrieve a balance sheet report
