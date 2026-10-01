@@ -12,6 +12,7 @@ import { GrantService, oauthRequestContext } from "./oauth/grants.js";
 import { organisationTools, withOrganisation } from "./oauth/organisation-tools.js";
 import { OAuthRoutes } from "./oauth/routes.js";
 import { OAuthStore } from "./oauth/store.js";
+import ReadCouplerExportTool from "./tools/coupler/read-coupler-export.tool.js";
 import { ToolFactory } from "./tools/tool-factory.js";
 
 const port = Number(process.env.PORT || 3000);
@@ -47,9 +48,12 @@ function buildServer(grants?: GrantService): McpServer {
   });
 
   if (grants) {
-    ToolFactory(server, withOrganisation(grants), organisationTools(grants));
+    ToolFactory(server, withOrganisation(grants), [
+      ...organisationTools(grants),
+      ReadCouplerExportTool(),
+    ]);
   } else {
-    ToolFactory(server);
+    ToolFactory(server, undefined, [ReadCouplerExportTool()]);
   }
 
   return server;
