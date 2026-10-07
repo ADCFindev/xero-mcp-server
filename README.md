@@ -200,6 +200,7 @@ payroll.timesheets
 - `approve-payroll-timesheet`: Approve a Payroll Timesheet
 - `revert-payroll-timesheet`: Revert an approved Payroll Timesheet
 - `add-payroll-timesheet-line`: Add new line on an existing Payroll Timesheet
+- `delete-bank-transaction`: Delete an unreconciled bank transaction
 - `delete-payroll-timesheet`: Delete an existing Payroll Timesheet
 - `get-payroll-timesheet`: Retrieve an existing Payroll Timesheet
 
