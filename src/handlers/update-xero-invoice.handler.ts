@@ -3,6 +3,7 @@ import { XeroClientResponse } from "../types/tool-response.js";
 import { formatError } from "../helpers/format-error.js";
 import { Invoice, LineItemTracking } from "xero-node";
 import { getClientHeaders } from "../helpers/get-client-headers.js";
+import { InvoiceOptions, invoiceOptionFields } from "./create-xero-invoice.handler.js";
 
 interface InvoiceLineItem {
   description: string;
@@ -35,6 +36,7 @@ async function updateInvoice(
   dueDate?: string,
   date?: string,
   contactId?: string,
+  options: InvoiceOptions = {},
 ): Promise<Invoice | undefined> {
   const invoice: Invoice = {
     lineItems: lineItems,
@@ -42,6 +44,7 @@ async function updateInvoice(
     dueDate: dueDate,
     date: date,
     contact: contactId ? { contactID: contactId } : undefined,
+    ...invoiceOptionFields(options),
   };
 
   const response = await xeroClient.accountingApi.updateInvoice(
@@ -68,18 +71,22 @@ export async function updateXeroInvoice(
   dueDate?: string,
   date?: string,
   contactId?: string,
+  options: InvoiceOptions = {},
 ): Promise<XeroClientResponse<Invoice>> {
   try {
     const existingInvoice = await getInvoice(invoiceId);
 
     const invoiceStatus = existingInvoice?.status;
 
-    // Only allow updates to DRAFT invoices
-    if (invoiceStatus !== Invoice.StatusEnum.DRAFT) {
+    // Only allow updates to DRAFT or SUBMITTED (awaiting approval) invoices
+    if (
+      invoiceStatus !== Invoice.StatusEnum.DRAFT &&
+      invoiceStatus !== Invoice.StatusEnum.SUBMITTED
+    ) {
       return {
         result: null,
         isError: true,
-        error: `Cannot update invoice because it is not a draft. Current status: ${invoiceStatus}`,
+        error: `Cannot update invoice because it is not a draft or awaiting approval. Current status: ${invoiceStatus}`,
       };
     }
 
@@ -90,6 +97,7 @@ export async function updateXeroInvoice(
       dueDate,
       date,
       contactId,
+      options,
     );
 
     if (!updatedInvoice) {

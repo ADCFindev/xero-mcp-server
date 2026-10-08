@@ -3,6 +3,7 @@ import { updateXeroInvoice } from "../../handlers/update-xero-invoice.handler.js
 import { DeepLinkType, getDeepLink } from "../../helpers/get-deeplink.js";
 import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
 import { Invoice } from "xero-node";
+import { invoiceOptionsSchema } from "../../helpers/invoice-options-schema.js";
 
 const trackingSchema = z.object({
   name: z.string().describe("The name of the tracking category. Can be obtained from the list-tracking-categories tool"),
@@ -27,7 +28,7 @@ const lineItemSchema = z.object({
 
 const UpdateInvoiceTool = CreateXeroTool(
   "update-invoice",
-  "Update an invoice in Xero. Only works on draft invoices.\
+  "Update an invoice in Xero. Only works on draft or awaiting-approval invoices. Can also approve one by setting status to AUTHORISED.\
   All line items must be provided. Any line items not provided will be removed. Including existing line items.\
   Do not modify line items that have not been specified by the user.\
  When an invoice is updated, a deep link to the invoice in Xero is returned. \
@@ -44,6 +45,7 @@ const UpdateInvoiceTool = CreateXeroTool(
     date: z.string().optional().describe("The date of the invoice."),
     contactId: z.string().optional().describe("The ID of the contact to update the invoice for. \
       Can be obtained from the list-contacts tool."),
+    ...invoiceOptionsSchema,
   },
   async (
     {
@@ -53,6 +55,7 @@ const UpdateInvoiceTool = CreateXeroTool(
       dueDate,
       date,
       contactId,
+      ...options
     }: {
       invoiceId: string;
       lineItems?: Array<{
@@ -66,6 +69,11 @@ const UpdateInvoiceTool = CreateXeroTool(
       dueDate?: string;
       date?: string;
       contactId?: string;
+      invoiceNumber?: string;
+      currencyCode?: string;
+      currencyRate?: number;
+      status?: "DRAFT" | "SUBMITTED" | "AUTHORISED";
+      lineAmountTypes?: "Exclusive" | "Inclusive" | "NoTax";
     },
     //_extra: { signal: AbortSignal },
   ) => {
@@ -76,6 +84,7 @@ const UpdateInvoiceTool = CreateXeroTool(
       dueDate,
       date,
       contactId,
+      options,
     );
     if (result.isError) {
       return {
@@ -104,9 +113,10 @@ const UpdateInvoiceTool = CreateXeroTool(
           text: [
             "Invoice updated successfully:",
             `ID: ${invoice?.invoiceID}`,
+            `Invoice Number: ${invoice?.invoiceNumber}`,
             `Contact: ${invoice?.contact?.name}`,
             `Type: ${invoice?.type}`,
-            `Total: ${invoice?.total}`,
+            `Total: ${invoice?.total} ${invoice?.currencyCode}`,
             `Status: ${invoice?.status}`,
             deepLink ? `Link to view: ${deepLink}` : null,
           ].join("\n"),

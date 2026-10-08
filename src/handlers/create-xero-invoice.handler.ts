@@ -1,7 +1,12 @@
 import { xeroClient } from "../clients/xero-client.js";
 import { XeroClientResponse } from "../types/tool-response.js";
 import { formatError } from "../helpers/format-error.js";
-import { Invoice, LineItemTracking } from "xero-node";
+import {
+  CurrencyCode,
+  Invoice,
+  LineAmountTypes,
+  LineItemTracking,
+} from "xero-node";
 import { getClientHeaders } from "../helpers/get-client-headers.js";
 
 interface InvoiceLineItem {
@@ -14,12 +19,49 @@ interface InvoiceLineItem {
   tracking?: LineItemTracking[];
 }
 
+/**
+ * Optional invoice header fields shared by create-invoice and update-invoice.
+ */
+export interface InvoiceOptions {
+  invoiceNumber?: string;
+  currencyCode?: string;
+  currencyRate?: number;
+  dueDate?: string;
+  status?: "DRAFT" | "SUBMITTED" | "AUTHORISED";
+  lineAmountTypes?: "Exclusive" | "Inclusive" | "NoTax";
+}
+
+/**
+ * Map InvoiceOptions onto Xero invoice fields, leaving out anything not provided.
+ */
+export function invoiceOptionFields(options: InvoiceOptions): Partial<Invoice> {
+  return {
+    ...(options.invoiceNumber ? { invoiceNumber: options.invoiceNumber } : {}),
+    ...(options.currencyCode
+      ? {
+          currencyCode:
+            options.currencyCode.toUpperCase() as unknown as CurrencyCode,
+        }
+      : {}),
+    ...(options.currencyRate ? { currencyRate: options.currencyRate } : {}),
+    ...(options.dueDate ? { dueDate: options.dueDate } : {}),
+    ...(options.status ? { status: Invoice.StatusEnum[options.status] } : {}),
+    ...(options.lineAmountTypes
+      ? {
+          lineAmountTypes:
+            options.lineAmountTypes as unknown as LineAmountTypes,
+        }
+      : {}),
+  };
+}
+
 async function createInvoice(
   contactId: string,
   lineItems: InvoiceLineItem[],
   type: Invoice.TypeEnum,
   reference: string | undefined,
   date: string | undefined,
+  options: InvoiceOptions,
 ): Promise<Invoice | undefined> {
   await xeroClient.authenticate();
 
@@ -32,11 +74,13 @@ async function createInvoice(
     date: date || new Date().toISOString().split("T")[0], // Use provided date or today's date
     dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
       .toISOString()
-      .split("T")[0], // 30 days from now
-    ...(type === Invoice.TypeEnum.ACCPAY
+      .split("T")[0], // 30 days from now unless options.dueDate is given
+    // For bills without an explicit invoiceNumber, keep using reference as the supplier's number
+    ...(type === Invoice.TypeEnum.ACCPAY && !options.invoiceNumber
       ? { invoiceNumber: reference }
       : { reference: reference }),
     status: Invoice.StatusEnum.DRAFT,
+    ...invoiceOptionFields(options),
   };
 
   const response = await xeroClient.accountingApi.createInvoices(
@@ -62,6 +106,7 @@ export async function createXeroInvoice(
   type: Invoice.TypeEnum = Invoice.TypeEnum.ACCREC,
   reference?: string,
   date?: string,
+  options: InvoiceOptions = {},
 ): Promise<XeroClientResponse<Invoice>> {
   try {
     const createdInvoice = await createInvoice(
@@ -70,6 +115,7 @@ export async function createXeroInvoice(
       type,
       reference,
       date,
+      options,
     );
 
     if (!createdInvoice) {
