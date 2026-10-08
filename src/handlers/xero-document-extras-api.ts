@@ -76,6 +76,96 @@ export async function listXeroAttachments(
   }
 }
 
+export const MAX_ATTACHMENT_DOWNLOAD_BYTES = 10 * 1024 * 1024;
+
+function describeAttachments(attachments: AttachmentRecord[]): string {
+  return attachments
+    .map((attachment) => `${attachment.FileName} (${attachment.AttachmentID})`)
+    .join(", ");
+}
+
+export async function getXeroAttachment(params: {
+  resource: SupportedDocumentResource;
+  resourceId: string;
+  attachmentId?: string;
+  fileName?: string;
+}): Promise<XeroClientResponse<{
+  attachment: AttachmentRecord;
+  contentBase64: string;
+  sizeBytes: number;
+}>> {
+  try {
+    const listed = await listXeroAttachments(params.resource, params.resourceId);
+    if (listed.isError) throw new Error(listed.error);
+
+    const attachments = listed.result ?? [];
+    if (attachments.length === 0) {
+      throw new Error("This document has no attachments.");
+    }
+
+    let attachment: AttachmentRecord | undefined;
+    if (params.attachmentId) {
+      attachment = attachments.find(
+        (candidate) => candidate.AttachmentID === params.attachmentId,
+      );
+    } else if (params.fileName) {
+      attachment = attachments.find(
+        (candidate) => candidate.FileName === params.fileName,
+      );
+    } else if (attachments.length === 1) {
+      attachment = attachments[0];
+    } else {
+      throw new Error(
+        `This document has ${attachments.length} attachments; pass attachmentId or fileName. Available: ${describeAttachments(attachments)}`,
+      );
+    }
+
+    if (!attachment?.AttachmentID) {
+      throw new Error(
+        `Attachment not found. Available: ${describeAttachments(attachments)}`,
+      );
+    }
+
+    if (
+      attachment.ContentLength &&
+      attachment.ContentLength > MAX_ATTACHMENT_DOWNLOAD_BYTES
+    ) {
+      throw new Error(
+        `Attachment is ${attachment.ContentLength} bytes, over the ${MAX_ATTACHMENT_DOWNLOAD_BYTES}-byte download limit.`,
+      );
+    }
+
+    const headers = await getAuthHeaders();
+    headers.Accept = attachment.MimeType || "application/octet-stream";
+
+    const response = await axios.get(
+      `https://api.xero.com/api.xro/2.0/${params.resource}/${encodeURIComponent(params.resourceId)}/Attachments/${encodeURIComponent(attachment.AttachmentID)}`,
+      {
+        headers,
+        responseType: "arraybuffer",
+        maxContentLength: MAX_ATTACHMENT_DOWNLOAD_BYTES,
+      },
+    );
+
+    const body = Buffer.from(response.data as ArrayBuffer);
+    if (body.length === 0) {
+      throw new Error("Xero returned an empty attachment.");
+    }
+
+    return {
+      result: {
+        attachment,
+        contentBase64: body.toString("base64"),
+        sizeBytes: body.length,
+      },
+      isError: false,
+      error: null,
+    };
+  } catch (error) {
+    return { result: null, isError: true, error: formatError(error) };
+  }
+}
+
 export async function uploadXeroAttachment(params: {
   resource: SupportedDocumentResource;
   resourceId: string;
