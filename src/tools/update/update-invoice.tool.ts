@@ -41,7 +41,6 @@ const UpdateInvoiceTool = CreateXeroTool(
       Do not modify line items that have not been specified by the user",
     ),
     reference: z.string().optional().describe("A reference number for the invoice."),
-    dueDate: z.string().optional().describe("The due date of the invoice."),
     date: z.string().optional().describe("The date of the invoice."),
     contactId: z.string().optional().describe("The ID of the contact to update the invoice for. \
       Can be obtained from the list-contacts tool."),
