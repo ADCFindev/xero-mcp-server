@@ -13,6 +13,8 @@ interface XeroSdkError {
       httpStatusCode?: string;
       problem?: XeroSdkProblem;
       Detail?: string;
+      Message?: string;
+      Elements?: { ValidationErrors?: { Message?: string }[] }[];
     };
   };
 }
@@ -65,6 +67,17 @@ export function formatError(error: unknown): string {
     if (mapped) return mapped;
 
     const body = error.response.body;
+
+    // Accounting API validation failures (e.g. an edit Xero refuses) list
+    // their reasons under Elements[].ValidationErrors[].Message.
+    const validationMessages = (body?.Elements ?? [])
+      .flatMap((element) => element?.ValidationErrors ?? [])
+      .map((validationError) => validationError?.Message)
+      .filter((message): message is string => typeof message === "string" && message.length > 0);
+    if (validationMessages.length > 0) {
+      return `${status} ${body?.Message ?? "Validation error"}: ${validationMessages.join(" ")}`;
+    }
+
     const problem = body?.problem;
     const title = problem?.title ?? body?.httpStatusCode ?? "HTTP error";
     const detail = problem?.detail ?? body?.Detail;

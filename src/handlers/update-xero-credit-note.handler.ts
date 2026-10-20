@@ -12,20 +12,6 @@ interface CreditNoteLineItem {
   taxType: string;
 }
 
-async function getCreditNote(creditNoteId: string): Promise<CreditNote | null> {
-  await xeroClient.authenticate();
-
-  // First, get the current credit note to check its status
-  const response = await xeroClient.accountingApi.getCreditNote(
-    xeroClient.tenantId,
-    creditNoteId, // creditNoteId
-    undefined, // unitdp
-    getClientHeaders(), // options
-  );
-
-  return response.body.creditNotes?.[0] ?? null;
-}
-
 async function updateCreditNote(
   creditNoteId: string,
   lineItems?: CreditNoteLineItem[],
@@ -65,19 +51,10 @@ export async function updateXeroCreditNote(
   date?: string,
 ): Promise<XeroClientResponse<CreditNote>> {
   try {
-    const existingCreditNote = await getCreditNote(creditNoteId);
+    await xeroClient.authenticate();
 
-    const creditNoteStatus = existingCreditNote?.status;
-
-    // Only allow updates to DRAFT credit notes
-    if (creditNoteStatus !== CreditNote.StatusEnum.DRAFT) {
-      return {
-        result: null,
-        isError: true,
-        error: `Cannot update credit note because it is not a draft. Current status: ${creditNoteStatus}`,
-      };
-    }
-
+    // No status checks here: Xero decides what can be edited and its
+    // validation errors are passed back as they are.
     const updatedCreditNote = await updateCreditNote(
       creditNoteId,
       lineItems,

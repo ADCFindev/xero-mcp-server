@@ -90,6 +90,33 @@ describe("formatError", () => {
       expect(result).not.toContain("set-cookie");
     });
 
+    it("returns Xero's validation messages for a refused accounting update", () => {
+      const sdkError = {
+        response: {
+          statusCode: 400,
+          body: {
+            ErrorNumber: 10,
+            Type: "ValidationException",
+            Message: "A validation exception occurred",
+            Elements: [
+              {
+                ValidationErrors: [
+                  { Message: "Invoice not of valid status for modification" },
+                ],
+              },
+            ],
+          },
+        },
+        request: { headers: { authorization: "Bearer leaky" } },
+      };
+
+      const result = formatError(sdkError);
+      expect(result).toBe(
+        "400 A validation exception occurred: Invoice not of valid status for modification",
+      );
+      expect(result).not.toContain("Bearer");
+    });
+
     it("maps 401 SDK error to the standard auth message", () => {
       const sdkError = {
         response: { statusCode: 401, body: {} },
