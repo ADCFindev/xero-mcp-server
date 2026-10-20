@@ -1,24 +1,26 @@
 import { z } from "zod";
 import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
-import { createXeroBankTransaction } from "../../handlers/create-xero-bank-transaction.handler.js";
+import { bankTransactionTypes, createXeroBankTransaction } from "../../handlers/create-xero-bank-transaction.handler.js";
 import { bankTransactionDeepLink } from "../../consts/deeplinks.js";
 
 const lineItemSchema = z.object({
   description: z.string(),
   quantity: z.number(),
   unitAmount: z.number(),
-  accountCode: z.string(),
-  taxType: z.string(),
+  accountCode: z.string().optional().describe("Required for RECEIVE, SPEND and prepayments. \
+    Leave out for overpayments, which Xero posts to accounts receivable or payable."),
+  taxType: z.string().optional(),
 });
 
 const CreateBankTransactionTool = CreateXeroTool(
   "create-bank-transaction",
-  `Create a bank transaction in Xero.
+  `Create a bank transaction in Xero: a receive or spend money transaction, or an overpayment or prepayment.
+  Overpayments and prepayments can later be allocated to invoices or bills.
   When a bank transaction is created, a deep link to the bank transaction in Xero is returned.
   This deep link can be used to view the bank transaction in Xero directly.
   This link should be displayed to the user.`,
   {
-    type: z.enum(["RECEIVE", "SPEND"]),
+    type: z.enum(bankTransactionTypes),
     bankAccountId: z.string(),
     contactId: z.string(),
     lineItems: z.array(lineItemSchema),
