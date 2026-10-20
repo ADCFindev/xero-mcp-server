@@ -31,14 +31,27 @@ const CreatePaymentTool = CreateXeroTool(
       .string()
       .optional()
       .describe("Optional payment reference/description"),
+    bankAmount: z
+      .number()
+      .positive()
+      .optional()
+      .describe("Optional amount that left or reached the bank account, in the bank account's currency. \
+        Use when the invoice and bank account currencies differ, e.g. a GBP bill paid from a USD account."),
+    currencyRate: z
+      .number()
+      .positive()
+      .optional()
+      .describe("Optional exchange rate for the payment. Leave empty to use Xero's rate, or use bankAmount instead."),
   },
-  async ({ invoiceId, accountId, amount, date, reference }) => {
+  async ({ invoiceId, accountId, amount, date, reference, bankAmount, currencyRate }) => {
     const result = await createXeroPayment({
       invoiceId,
       accountId,
       amount,
       date,
       reference,
+      bankAmount,
+      currencyRate,
     });
     if (result.isError) {
       return {

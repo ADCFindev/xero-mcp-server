@@ -8,11 +8,20 @@ interface BankTransactionLineItem {
   description: string;
   quantity: number;
   unitAmount: number;
-  accountCode: string;
-  taxType: string;
+  accountCode?: string;
+  taxType?: string;
 }
 
-type BankTransactionType = "RECEIVE" | "SPEND";
+export const bankTransactionTypes = [
+  "RECEIVE",
+  "SPEND",
+  "RECEIVE-OVERPAYMENT",
+  "SPEND-OVERPAYMENT",
+  "RECEIVE-PREPAYMENT",
+  "SPEND-PREPAYMENT",
+] as const;
+
+type BankTransactionType = (typeof bankTransactionTypes)[number];
 
 async function createBankTransaction(
   type: BankTransactionType,
@@ -25,7 +34,8 @@ async function createBankTransaction(
   await xeroClient.authenticate();
 
   const bankTransaction: BankTransaction = {
-    type: BankTransaction.TypeEnum[type],
+    // The SDK's enum keys drop the hyphen, e.g. SPENDOVERPAYMENT = "SPEND-OVERPAYMENT"
+    type: BankTransaction.TypeEnum[type.replace("-", "") as keyof typeof BankTransaction.TypeEnum],
     bankAccount: {
       accountID: bankAccountId
     },

@@ -13,7 +13,7 @@ const lineItemSchema = z.object({
 
 const UpdateCreditNoteTool = CreateXeroTool(
   "update-credit-note",
-  "Update a credit note in Xero. Only works on draft credit notes.\
+  "Update a credit note in Xero, in any status Xero allows; Xero's own error is returned if it refuses.\
   All line items must be provided. Any line items not provided will be removed. Including existing line items.\
   Do not modify line items that have not been specified by the user.\
  When a credit note is updated, a deep link to the credit note in Xero is returned.\

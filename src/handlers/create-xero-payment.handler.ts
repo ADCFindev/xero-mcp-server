@@ -10,6 +10,8 @@ type PaymentProps = {
   amount: number;
   date?: string;
   reference?: string;
+  bankAmount?: number;
+  currencyRate?: number;
 };
 
 async function createPayment({
@@ -18,6 +20,8 @@ async function createPayment({
   amount,
   date,
   reference,
+  bankAmount,
+  currencyRate,
 }: PaymentProps): Promise<Payment | undefined> {
   await xeroClient.authenticate();
 
@@ -31,6 +35,8 @@ async function createPayment({
     amount: amount,
     date: date || new Date().toISOString().split("T")[0], // Today's date if not specified
     reference: reference,
+    ...(bankAmount !== undefined ? { bankAmount } : {}),
+    ...(currencyRate !== undefined ? { currencyRate } : {}),
   };
 
   const response = await xeroClient.accountingApi.createPayment(
@@ -52,6 +58,8 @@ export async function createXeroPayment({
   amount,
   date,
   reference,
+  bankAmount,
+  currencyRate,
 }: PaymentProps): Promise<XeroClientResponse<Payment>> {
   try {
     const createdPayment = await createPayment({
@@ -60,6 +68,8 @@ export async function createXeroPayment({
       amount,
       date,
       reference,
+      bankAmount,
+      currencyRate,
     });
 
     if (!createdPayment) {

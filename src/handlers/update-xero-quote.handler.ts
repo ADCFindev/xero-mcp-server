@@ -1,7 +1,7 @@
 import { xeroClient } from "../clients/xero-client.js";
 import { XeroClientResponse } from "../types/tool-response.js";
 import { formatError } from "../helpers/format-error.js";
-import { Quote, QuoteStatusCodes } from "xero-node";
+import { Quote } from "xero-node";
 import { getClientHeaders } from "../helpers/get-client-headers.js";
 
 interface QuoteLineItem {
@@ -15,7 +15,7 @@ interface QuoteLineItem {
 async function getQuote(quoteId: string): Promise<Quote | undefined> {
   await xeroClient.authenticate();
 
-  // First, get the current quote to check its status
+  // First, get the current quote to fill in its contact and date
   const response = await xeroClient.accountingApi.getQuote(
     xeroClient.tenantId, // tenantId
     quoteId, // quoteId
@@ -93,17 +93,6 @@ export async function updateXeroQuote(
 ): Promise<XeroClientResponse<Quote>> {
   try {
     const existingQuote = await getQuote(quoteId);
-
-    const quoteStatus = existingQuote?.status;
-
-    // Only allow updates to DRAFT quotes
-    if (quoteStatus !== QuoteStatusCodes.DRAFT) {
-      return {
-        result: null,
-        isError: true,
-        error: `Cannot update quote because it is not a draft. Current status: ${quoteStatus}`,
-      };
-    }
 
     const updatedQuote = await updateQuote(
       quoteId,

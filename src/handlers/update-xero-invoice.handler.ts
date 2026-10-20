@@ -15,20 +15,6 @@ interface InvoiceLineItem {
   tracking?: LineItemTracking[];
 }
 
-async function getInvoice(invoiceId: string): Promise<Invoice | undefined> {
-  await xeroClient.authenticate();
-
-  // First, get the current invoice to check its status
-  const response = await xeroClient.accountingApi.getInvoice(
-    xeroClient.tenantId,
-    invoiceId, // invoiceId
-    undefined, // unitdp
-    getClientHeaders(), // options
-  );
-
-  return response.body.invoices?.[0];
-}
-
 async function updateInvoice(
   invoiceId: string,
   lineItems?: InvoiceLineItem[],
@@ -62,7 +48,7 @@ async function updateInvoice(
 }
 
 /**
- * Update an existing invoice in Xero
+ * Update an existing invoice or bill in Xero
  */
 export async function updateXeroInvoice(
   invoiceId: string,
@@ -74,22 +60,10 @@ export async function updateXeroInvoice(
   options: InvoiceOptions = {},
 ): Promise<XeroClientResponse<Invoice>> {
   try {
-    const existingInvoice = await getInvoice(invoiceId);
+    await xeroClient.authenticate();
 
-    const invoiceStatus = existingInvoice?.status;
-
-    // Only allow updates to DRAFT or SUBMITTED (awaiting approval) invoices
-    if (
-      invoiceStatus !== Invoice.StatusEnum.DRAFT &&
-      invoiceStatus !== Invoice.StatusEnum.SUBMITTED
-    ) {
-      return {
-        result: null,
-        isError: true,
-        error: `Cannot update invoice because it is not a draft or awaiting approval. Current status: ${invoiceStatus}`,
-      };
-    }
-
+    // No status checks here: Xero decides what can be edited and its
+    // validation errors are passed back as they are.
     const updatedInvoice = await updateInvoice(
       invoiceId,
       lineItems,
