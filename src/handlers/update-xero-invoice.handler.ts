@@ -62,6 +62,36 @@ async function updateInvoice(
 }
 
 /**
+ * Xero lets the API edit DRAFT, SUBMITTED and AUTHORISED invoices and bills,
+ * but not once a payment, credit note, prepayment or overpayment is applied,
+ * and never PAID, VOIDED or DELETED ones. Returns why an edit is refused, or
+ * null when Xero should be asked to make it.
+ */
+export function editRefusal(invoice: Invoice | undefined): string | null {
+  const status = invoice?.status;
+
+  switch (status) {
+    case Invoice.StatusEnum.DRAFT:
+    case Invoice.StatusEnum.SUBMITTED:
+      return null;
+    case Invoice.StatusEnum.AUTHORISED: {
+      const paid = Number(invoice?.amountPaid ?? 0);
+      const credited = Number(invoice?.amountCredited ?? 0);
+      if (paid !== 0 || credited !== 0) {
+        return `Cannot update invoice because it has payments (${paid}) or credits (${credited}) applied. \
+Xero only allows edits once these are removed.`;
+      }
+      return null;
+    }
+    case Invoice.StatusEnum.PAID:
+      return "Cannot update invoice because it is PAID. Xero does not allow paid invoices to be edited; \
+remove the payments first, or void it and create a replacement.";
+    default:
+      return `Cannot update invoice with status ${status}.`;
+  }
+}
+
+/**
  * Update an existing invoice in Xero
  */
 export async function updateXeroInvoice(
@@ -76,17 +106,12 @@ export async function updateXeroInvoice(
   try {
     const existingInvoice = await getInvoice(invoiceId);
 
-    const invoiceStatus = existingInvoice?.status;
-
-    // Only allow updates to DRAFT or SUBMITTED (awaiting approval) invoices
-    if (
-      invoiceStatus !== Invoice.StatusEnum.DRAFT &&
-      invoiceStatus !== Invoice.StatusEnum.SUBMITTED
-    ) {
+    const refusal = editRefusal(existingInvoice);
+    if (refusal) {
       return {
         result: null,
         isError: true,
-        error: `Cannot update invoice because it is not a draft or awaiting approval. Current status: ${invoiceStatus}`,
+        error: refusal,
       };
     }
 

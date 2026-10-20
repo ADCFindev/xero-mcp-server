@@ -28,7 +28,9 @@ const lineItemSchema = z.object({
 
 const UpdateInvoiceTool = CreateXeroTool(
   "update-invoice",
-  "Update an invoice in Xero. Only works on draft or awaiting-approval invoices. Can also approve one by setting status to AUTHORISED.\
+  "Update an invoice or bill in Xero. Works on draft, awaiting-approval and approved (AUTHORISED) ones, \
+  but not once payments or credits are applied, and not on paid, voided or deleted ones. \
+  Can also approve one by setting status to AUTHORISED.\
   All line items must be provided. Any line items not provided will be removed. Including existing line items.\
   Do not modify line items that have not been specified by the user.\
  When an invoice is updated, a deep link to the invoice in Xero is returned. \
