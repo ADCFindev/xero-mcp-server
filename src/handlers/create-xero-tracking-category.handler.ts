@@ -3,6 +3,7 @@ import { XeroClientResponse } from "../types/tool-response.js";
 import { formatError } from "../helpers/format-error.js";
 import { getClientHeaders } from "../helpers/get-client-headers.js";
 import { TrackingCategory } from "xero-node";
+import { invalidateReference } from "../helpers/reference-cache.js";
 
 async function createTrackingCategory(
   name: string
@@ -34,6 +35,8 @@ export async function createXeroTrackingCategory(
     if (!createdTrackingCategory) {
       throw new Error("Tracking Category creation failed.");
     }
+
+    invalidateReference("trackingCategories");
 
     return {
       result: createdTrackingCategory,

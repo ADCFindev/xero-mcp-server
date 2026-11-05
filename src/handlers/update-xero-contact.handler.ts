@@ -3,6 +3,7 @@ import { XeroClientResponse } from "../types/tool-response.js";
 import { formatError } from "../helpers/format-error.js";
 import { Contact, Phone, Address, Contacts } from "xero-node";
 import { getClientHeaders } from "../helpers/get-client-headers.js";
+import { invalidateReference } from "../helpers/reference-cache.js";
 
 async function updateContact(
   name: string,
@@ -85,6 +86,8 @@ export async function updateXeroContact(
     if (!updatedContact) {
       throw new Error("Contact update failed.");
     }
+
+    invalidateReference("contacts", "contactGroups");
 
     return {
       result: updatedContact,

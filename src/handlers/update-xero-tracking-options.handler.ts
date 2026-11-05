@@ -3,6 +3,7 @@ import { xeroClient } from "../clients/xero-client.js";
 import { formatError } from "../helpers/format-error.js";
 import { getClientHeaders } from "../helpers/get-client-headers.js";
 import { XeroClientResponse } from "../types/tool-response.js";
+import { invalidateReference } from "../helpers/reference-cache.js";
 
 type TrackingOptionStatus = "ACTIVE" | "ARCHIVED";
 
@@ -73,6 +74,8 @@ export async function updateXeroTrackingOption(
     if (!updatedTrackingOptions) {
       throw new Error("Failed to update tracking options.");
     }
+
+    invalidateReference("trackingCategories");
 
     return {
       result: updatedTrackingOptions

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { listXeroContactGroups } from "../../handlers/list-xero-contact-groups.handler.js";
 import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
+import { REFRESH_DESCRIPTION } from "../../helpers/reference-cache.js";
 
 const ListContactGroupsTool = CreateXeroTool(
   "list-contact-groups",
@@ -10,10 +11,16 @@ const ListContactGroupsTool = CreateXeroTool(
     contactGroupId: z
       .string()
       .optional()
-      .describe("Optional ID of the contact group to retrieve"),    
+      .describe("Optional ID of the contact group to retrieve"),
+    refresh: z
+      .boolean()
+      .optional()
+      .describe(REFRESH_DESCRIPTION),
   },
   async (args) => {
-    const response = await listXeroContactGroups(args?.contactGroupId);
+    const response = await listXeroContactGroups(args?.contactGroupId, {
+      refresh: args?.refresh,
+    });
     
     if (response.error !== null) {
       return {

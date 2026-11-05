@@ -3,6 +3,7 @@ import { ContactGroup } from "xero-node";
 import { XeroClientResponse } from "../types/tool-response.js";
 import { formatError } from "../helpers/format-error.js";
 import { getClientHeaders } from "../helpers/get-client-headers.js";
+import { cachedReference } from "../helpers/reference-cache.js";
 
 async function getContactGroups(contactGroupId?: string): Promise<ContactGroup[]> {
   await xeroClient.authenticate();
@@ -28,11 +29,19 @@ async function getContactGroups(contactGroupId?: string): Promise<ContactGroup[]
 /**
  * List all contact groups from Xero. If a contactGroupId is provided, it will return only that contact group.
  */
-export async function listXeroContactGroups(contactGroupId?: string): Promise<
+export async function listXeroContactGroups(
+  contactGroupId?: string,
+  options: { refresh?: boolean } = {},
+): Promise<
   XeroClientResponse<ContactGroup[]>
 > {
   try {
-    const contactGroups = await getContactGroups(contactGroupId);
+    const contactGroups = await cachedReference(
+      "contactGroups",
+      { contactGroupId: contactGroupId ?? "" },
+      () => getContactGroups(contactGroupId),
+      options,
+    );
 
     return {
       result: contactGroups,

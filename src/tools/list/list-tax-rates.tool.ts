@@ -1,12 +1,19 @@
 import { listXeroTaxRates } from "../../handlers/list-xero-tax-rates.handler.js";
+import { z } from "zod";
 import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
+import { REFRESH_DESCRIPTION } from "../../helpers/reference-cache.js";
 
 const ListTaxRatesTool = CreateXeroTool(
   "list-tax-rates",
   "Lists all tax rates in Xero. Use this tool to get the tax rates to be used when creating invoices in Xero",
-  {},
-  async () => {
-    const response = await listXeroTaxRates();
+  {
+    refresh: z
+      .boolean()
+      .optional()
+      .describe(REFRESH_DESCRIPTION),
+  },
+  async ({ refresh }) => {
+    const response = await listXeroTaxRates({ refresh });
     if (response.error !== null) {
       return {
         content: [

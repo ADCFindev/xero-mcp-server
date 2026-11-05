@@ -60,8 +60,12 @@ export function withOrganisation(grants: GrantService) {
       } catch (error) {
         return errorResult(error);
       }
-      return withXeroMcpAuthorization({ accessToken, tenantId }, () =>
-        originalHandler(rest, extra),
+      // The organisation was just resolved from this grant's connection list,
+      // so reuse that list instead of asking Xero for it a second time.
+      return withXeroMcpAuthorization(
+        { accessToken, tenantId },
+        () => originalHandler(rest, extra),
+        () => grants.getConnections(grantId),
       );
     };
     return {
