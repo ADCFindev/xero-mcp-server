@@ -3,6 +3,7 @@ import { Contact } from "xero-node";
 import { XeroClientResponse } from "../types/tool-response.js";
 import { formatError } from "../helpers/format-error.js";
 import { getClientHeaders } from "../helpers/get-client-headers.js";
+import { cachedReference } from "../helpers/reference-cache.js";
 
 async function getContacts(page?: number, searchTerm?: string): Promise<Contact[]> {
   await xeroClient.authenticate();
@@ -26,11 +27,20 @@ async function getContacts(page?: number, searchTerm?: string): Promise<Contact[
 /**
  * List all contacts from Xero
  */
-export async function listXeroContacts(page?: number, searchTerm?: string): Promise<
+export async function listXeroContacts(
+  page?: number,
+  searchTerm?: string,
+  options: { refresh?: boolean } = {},
+): Promise<
   XeroClientResponse<Contact[]>
 > {
   try {
-    const contacts = await getContacts(page, searchTerm);
+    const contacts = await cachedReference(
+      "contacts",
+      { page: page ?? 1, searchTerm: searchTerm?.trim().toLowerCase() ?? "" },
+      () => getContacts(page, searchTerm),
+      options,
+    );
 
     return {
       result: contacts,

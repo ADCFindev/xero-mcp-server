@@ -330,6 +330,7 @@ export class OAuthRoutes {
         };
         return id;
       });
+      this.grants.invalidateConnections(grantId);
       if (pending.kind === "connect") {
         connectionNames = (await listConnections(tokens.access_token, this.grants.fetchImpl))
           .filter((c) => c.tenantType === "ORGANISATION")

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { listXeroAccounts } from "../../handlers/list-xero-accounts.handler.js";
 import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
+import { REFRESH_DESCRIPTION } from "../../helpers/reference-cache.js";
 
 const cell = (value: unknown) => String(value ?? "").replace(/[|\r\n]+/g, " ").replace(/\s{2,}/g, " ").trim();
 
@@ -19,9 +20,13 @@ const ListAccountsTool = CreateXeroTool(
       .optional()
       .default(true)
       .describe("Include archived accounts (default true)."),
+    refresh: z
+      .boolean()
+      .optional()
+      .describe(REFRESH_DESCRIPTION),
   },
   async (args) => {
-    const response = await listXeroAccounts();
+    const response = await listXeroAccounts({ refresh: args?.refresh });
     if (response.error !== null) {
       return {
         content: [

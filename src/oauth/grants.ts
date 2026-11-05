@@ -12,6 +12,13 @@ import {
 
 const REFRESH_MARGIN_MS = 2 * 60 * 1000;
 
+/**
+ * How long the list of connected organisations is reused. Xero already rejects
+ * calls for an organisation that was disconnected, and signing in again through
+ * /connect clears the cached list straight away.
+ */
+export const CONNECTIONS_TTL_MS = 10 * 60 * 1000;
+
 export class ReconnectRequiredError extends Error {
   constructor(readonly connectUrl: string) {
     super(
@@ -39,6 +46,10 @@ export const oauthRequestContext = new AsyncLocalStorage<OAuthRequestContext>();
 export class GrantService {
   private readonly box: SecretBox;
   private readonly refreshes = new Map<string, Promise<string>>();
+  private readonly connectionsCache = new Map<
+    string,
+    { connections: Promise<XeroConnection[]>; expiresAt: number }
+  >();
 
   constructor(
     readonly config: OAuthConfig,
@@ -110,10 +121,28 @@ export class GrantService {
   async getConnections(grantId: string): Promise<XeroConnection[]> {
     const context = oauthRequestContext.getStore();
     if (context && context.grantId === grantId) {
-      context.connections ??= this.loadConnections(grantId);
+      context.connections ??= this.cachedConnections(grantId);
       return context.connections;
     }
-    return this.loadConnections(grantId);
+    return this.cachedConnections(grantId);
+  }
+
+  /** Forgets the cached organisation list, e.g. after the user signs in again. */
+  invalidateConnections(grantId: string): void {
+    this.connectionsCache.delete(grantId);
+  }
+
+  private cachedConnections(grantId: string): Promise<XeroConnection[]> {
+    const cached = this.connectionsCache.get(grantId);
+    if (cached && cached.expiresAt > Date.now()) return cached.connections;
+
+    const connections = this.loadConnections(grantId);
+    const entry = { connections, expiresAt: Date.now() + CONNECTIONS_TTL_MS };
+    this.connectionsCache.set(grantId, entry);
+    connections.catch(() => {
+      if (this.connectionsCache.get(grantId) === entry) this.connectionsCache.delete(grantId);
+    });
+    return connections;
   }
 
   private async loadConnections(grantId: string): Promise<XeroConnection[]> {

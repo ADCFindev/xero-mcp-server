@@ -197,13 +197,23 @@ it("completes the claude.ai OAuth flow against a fake Xero", async () => {
   await assert.rejects(grants.resolveOrganisation(grantId), /Specify which organisation/);
   await grants.setDefaultOrganisation(grantId, connections[1]!.tenantId);
   assert.equal((await grants.resolveOrganisation(grantId)).tenantName, "Kapow LLC");
-  // per-request connection caching
-  const before = calls.length;
+  // connection list is cached per grant across requests, until invalidated
+  const connectionCalls = () => calls.filter((u) => u.endsWith("/connections")).length;
+  let before = connectionCalls();
   await oauthRequestContext.run({ grantId }, async () => {
     await grants.resolveOrganisation(grantId, "Kapow LLC");
     await grants.getConnections(grantId);
   });
-  assert.equal(calls.filter((u) => u.endsWith("/connections")).length - calls.slice(0, before).filter((u) => u.endsWith("/connections")).length, 1);
+  await oauthRequestContext.run({ grantId }, () => grants.resolveOrganisation(grantId, "Kapow LLC"));
+  assert.equal(connectionCalls() - before, 0, "connections reused from the grant cache");
+  grants.invalidateConnections(grantId);
+  before = connectionCalls();
+  await oauthRequestContext.run({ grantId }, async () => {
+    await grants.resolveOrganisation(grantId, "Kapow LLC");
+    await grants.getConnections(grantId);
+  });
+  await grants.getConnections(grantId);
+  assert.equal(connectionCalls() - before, 1, "one Xero call after invalidation, then cached");
 
   // 9. revoked Xero refresh token -> reconnect message
   validRefresh.clear();

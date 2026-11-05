@@ -3,6 +3,7 @@ import { XeroClientResponse } from "../types/tool-response.js";
 import { formatError } from "../helpers/format-error.js";
 import { Item } from "xero-node";
 import { getClientHeaders } from "../helpers/get-client-headers.js";
+import { cachedReference } from "../helpers/reference-cache.js";
 
 async function getItems(
   page: number,
@@ -25,9 +26,10 @@ async function getItems(
  */
 export async function listXeroItems(
   page: number = 1,
+  options: { refresh?: boolean } = {},
 ): Promise<XeroClientResponse<Item[]>> {
   try {
-    const items = await getItems(page);
+    const items = await cachedReference("items", { page }, () => getItems(page), options);
 
     return {
       result: items,

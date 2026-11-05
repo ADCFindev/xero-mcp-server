@@ -3,6 +3,7 @@ import { XeroClientResponse } from "../types/tool-response.js";
 import { formatError } from "../helpers/format-error.js";
 import { getClientHeaders } from "../helpers/get-client-headers.js";
 import { TrackingOption } from "xero-node";
+import { invalidateReference } from "../helpers/reference-cache.js";
 
 async function createTrackingOption(
   trackingCategoryId: string,
@@ -33,6 +34,8 @@ export async function createXeroTrackingOptions(
     const createdOptions = await Promise.all(
       optionNames.map(async optionName => await createTrackingOption(trackingCategoryId, optionName))
     );
+
+    invalidateReference("trackingCategories");
 
     return {
       result: createdOptions
