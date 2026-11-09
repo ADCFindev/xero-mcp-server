@@ -21,6 +21,13 @@ import {
   sourceDetailFrom,
   summariseLedger,
 } from "../helpers/account-transactions.js";
+import {
+  AccountLookup,
+  DocumentKind,
+  buildDocumentWhere,
+  documentToLedgerLines,
+  sortLedgerLines,
+} from "../helpers/account-lines-from-documents.js";
 
 const API = "https://api.xero.com/api.xro/2.0";
 const JOURNALS_PAGE_SIZE = 100;
@@ -35,6 +42,13 @@ export type AccountTransactionsParams = {
   includeSourceDetails: boolean;
   /** YYYY-MM-DD, or "all" to scan every journal in the organisation. */
   createdSince?: string;
+  /**
+   * "journals" reads /Journals (complete ledger, needs Journals API access);
+   * "documents" rebuilds lines from invoices, bills, credit notes, spend/receive
+   * money and manual journals; "auto" (default) tries journals and falls back
+   * to documents when Xero refuses the Journals endpoint.
+   */
+  method?: "auto" | "journals" | "documents";
 };
 
 export type AccountTransactionsResult = {
@@ -44,8 +58,10 @@ export type AccountTransactionsResult = {
   accounts: Array<{ code: string; name: string; id: string }>;
   unknownAccounts: string[];
   scan: {
+    method: "journals" | "documents";
     createdSince: string | null;
     journalsScanned: number;
+    documentsScanned: number;
     pages: number;
   };
   warnings: string[];
@@ -166,6 +182,67 @@ async function fetchSourceDetails(
   return details;
 }
 
+const DOCUMENT_KINDS: DocumentKind[] = ["Invoices", "CreditNotes", "BankTransactions", "ManualJournals"];
+const MAX_DOCUMENT_PAGES = 200; // 100 per page
+
+/** Pages through one document type dated in the period, with line items. */
+async function fetchDocuments(
+  kind: DocumentKind,
+  fromDate: string,
+  toDate: string,
+): Promise<{ docs: unknown[]; pages: number }> {
+  const docs: unknown[] = [];
+  const where = buildDocumentWhere(kind, fromDate, toDate);
+  let pages = 0;
+  for (let page = 1; page <= MAX_DOCUMENT_PAGES; page++) {
+    const data = await xeroGet<Record<string, unknown>>(kind, { where, page });
+    const batch = Array.isArray(data[kind]) ? (data[kind] as unknown[]) : [];
+    pages += 1;
+    docs.push(...batch);
+    if (batch.length < 100) return { docs, pages };
+  }
+  throw new Error(`Stopped after ${MAX_DOCUMENT_PAGES} pages of ${kind}. Narrow the date range.`);
+}
+
+function isAccessDenied(error: unknown): boolean {
+  const status = (error as AxiosError)?.response?.status;
+  return status === 401 || status === 403;
+}
+
+async function ledgerFromDocuments(
+  filter: JournalFilter,
+  currency: string,
+  allAccounts: AccountRecord[],
+  warnings: string[],
+): Promise<{ lines: LedgerLine[]; documentsScanned: number; pages: number }> {
+  const lookup: AccountLookup = new Map();
+  for (const a of allAccounts) {
+    const entry = { code: a.Code ?? "", name: a.Name ?? "", id: a.AccountID ?? "" };
+    if (a.AccountID) lookup.set(a.AccountID.toLowerCase(), entry);
+    if (a.Code) lookup.set(a.Code.toUpperCase(), entry);
+  }
+  const lines: LedgerLine[] = [];
+  let documentsScanned = 0;
+  let pages = 0;
+  for (const kind of DOCUMENT_KINDS) {
+    try {
+      const result = await fetchDocuments(kind, filter.fromDate, filter.toDate);
+      documentsScanned += result.docs.length;
+      pages += result.pages;
+      for (const doc of result.docs) {
+        lines.push(...documentToLedgerLines(kind, doc, filter, currency, lookup));
+      }
+    } catch (error) {
+      warnings.push(`Could not read ${kind}: ${formatError(error)}. Lines from ${kind} are missing.`);
+    }
+  }
+  warnings.push(
+    "Rebuilt from source documents (invoices, bills, credit notes, spend/receive money, manual journals) because the Journals endpoint is not available. " +
+      "Entries Xero generates itself (payment FX gains, revaluations, conversion balances, tax-rate postings) are not included, and foreign-currency lines are converted per line, so check the total against the trial balance movement.",
+  );
+  return { lines: sortLedgerLines(lines), documentsScanned, pages };
+}
+
 export async function listXeroAccountTransactions(
   params: AccountTransactionsParams,
 ): Promise<XeroClientResponse<AccountTransactionsResult>> {
@@ -196,12 +273,53 @@ export async function listXeroAccountTransactions(
       sourceTypes: normaliseSourceTypes(params.sourceTypes),
     };
 
+    const method = params.method ?? "auto";
+    if (method === "documents") {
+      const docs = await ledgerFromDocuments(filter, currency, allAccounts, warnings);
+      return {
+        result: {
+          lines: docs.lines,
+          summary: summariseLedger(docs.lines),
+          currency,
+          accounts: resolved,
+          unknownAccounts,
+          scan: { method: "documents", createdSince: null, journalsScanned: 0, documentsScanned: docs.documentsScanned, pages: docs.pages },
+          warnings,
+        },
+        isError: false,
+        error: null,
+      };
+    }
+
     const createdSince =
       params.createdSince === "all"
         ? null
         : params.createdSince ?? shiftIsoDate(params.fromDate, -DEFAULT_LOOKBACK_DAYS);
 
-    const { journals, pages } = await fetchJournals(createdSince);
+    let journalsResult: { journals: XeroJournal[]; pages: number };
+    try {
+      journalsResult = await fetchJournals(createdSince);
+    } catch (error) {
+      if (method === "auto" && isAccessDenied(error)) {
+        warnings.push(`Journals endpoint refused (${formatError(error)}).`);
+        const docs = await ledgerFromDocuments(filter, currency, allAccounts, warnings);
+        return {
+          result: {
+            lines: docs.lines,
+            summary: summariseLedger(docs.lines),
+            currency,
+            accounts: resolved,
+            unknownAccounts,
+            scan: { method: "documents", createdSince: null, journalsScanned: 0, documentsScanned: docs.documentsScanned, pages: docs.pages },
+            warnings,
+          },
+          isError: false,
+          error: null,
+        };
+      }
+      throw error;
+    }
+    const { journals, pages } = journalsResult;
 
     const sourceDetails = params.includeSourceDetails
       ? await fetchSourceDetails(groupSourceIds(journals, filter), warnings)
@@ -216,7 +334,7 @@ export async function listXeroAccountTransactions(
         currency,
         accounts: resolved,
         unknownAccounts,
-        scan: { createdSince, journalsScanned: journals.length, pages },
+        scan: { method: "journals", createdSince, journalsScanned: journals.length, documentsScanned: 0, pages },
         warnings,
       },
       isError: false,
