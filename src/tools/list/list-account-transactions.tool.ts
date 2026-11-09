@@ -14,6 +14,7 @@ const ListAccountTransactionsTool = CreateXeroTool(
   "list-account-transactions",
   "General ledger: every posted ledger line for one or more accounts in a date range — the equivalent of Xero's Account Transactions report. " +
     "Built from Xero journals, so it covers invoices, bills, credit notes, payments, spend/receive money, transfers, manual journals, payroll and conversions alike. " +
+    "If the Xero app has no Journals API access, it falls back to rebuilding the lines from posted invoices, bills, credit notes, spend/receive money and manual journals (method \"documents\"); check that total against the trial balance movement. " +
     "Drafts are never included. Net is signed: positive = debit, negative = credit. Ends with debits, credits and net movement per account.",
   {
     accountCodes: z
@@ -44,6 +45,13 @@ const ListAccountTransactionsTool = CreateXeroTool(
       .describe(
         'Only scan journals created on or after this date (YYYY-MM-DD) to save API calls. Defaults to 90 days before fromDate. Pass "all" to scan every journal, e.g. when entries may have been posted long in advance of their date.',
       ),
+    method: z
+      .enum(["auto", "journals", "documents"])
+      .optional()
+      .default("auto")
+      .describe(
+        '"auto" (default) uses journals and falls back to source documents if Xero refuses the Journals endpoint; "journals" never falls back; "documents" skips journals.',
+      ),
     maxRows: z
       .number()
       .int()
@@ -53,7 +61,7 @@ const ListAccountTransactionsTool = CreateXeroTool(
       .default(400)
       .describe("Maximum ledger lines to print (default 400). The summary always covers every line."),
   },
-  async ({ accountCodes, fromDate, toDate, sourceTypes, includeSourceDetails, format, createdSince, maxRows }) => {
+  async ({ accountCodes, fromDate, toDate, sourceTypes, includeSourceDetails, format, createdSince, method, maxRows }) => {
     if (!isValidIsoDate(fromDate) || !isValidIsoDate(toDate)) {
       return { content: [text("fromDate and toDate must be valid dates in YYYY-MM-DD format.")], isError: true };
     }
@@ -74,11 +82,12 @@ const ListAccountTransactionsTool = CreateXeroTool(
       sourceTypes,
       includeSourceDetails: includeSourceDetails ?? true,
       createdSince,
+      method,
     });
 
     if (response.isError) {
       const hint = /401|403|Authentication failed|denied access|scope/i.test(response.error)
-        ? " The Journals endpoint needs the accounting.journals.read scope: the Xero app must have Journals API access, the scope must be in XERO_SCOPES, and the organisation must be reconnected via connect-organisation so the token carries it."
+        ? " Try method \"documents\". The Journals endpoint needs the accounting.journals.read scope: the Xero app must have Journals API access (Xero restricts it to approved apps), the scope must be in XERO_SCOPES, and the organisation must be reconnected via connect-organisation so the token carries it."
         : "";
       return { content: [text(`Error listing account transactions: ${response.error}${hint}`)], isError: true };
     }
@@ -87,7 +96,9 @@ const ListAccountTransactionsTool = CreateXeroTool(
     const accountLabel = r.accounts.length
       ? r.accounts.map((a) => `${a.code || "(no code)"} ${a.name}`).join(", ")
       : accountCodes.join(", ");
-    const scanNote = r.scan.createdSince
+    const scanNote = r.scan.method === "documents"
+      ? `Rebuilt from ${r.scan.documentsScanned} posted source documents dated in the period (${r.scan.pages} page(s)).`
+      : r.scan.createdSince
       ? `Scanned ${r.scan.journalsScanned} journals created since ${r.scan.createdSince} (${r.scan.pages} page(s)). Entries created before then but dated in the period are not included; use createdSince "all" to be exhaustive.`
       : `Scanned all ${r.scan.journalsScanned} journals (${r.scan.pages} page(s)).`;
     const notes = [
