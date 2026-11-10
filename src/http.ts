@@ -12,6 +12,12 @@ import { GrantService, oauthRequestContext } from "./oauth/grants.js";
 import { organisationTools, withOrganisation } from "./oauth/organisation-tools.js";
 import { OAuthRoutes } from "./oauth/routes.js";
 import { OAuthStore } from "./oauth/store.js";
+import {
+  ServiceClient,
+  authenticateServiceClient,
+  authorizeServiceBody,
+  loadServiceClients,
+} from "./oauth/service-clients.js";
 import { ToolFactory } from "./tools/tool-factory.js";
 
 const port = Number(process.env.PORT || 3000);
@@ -19,6 +25,49 @@ const port = Number(process.env.PORT || 3000);
 // Multi-client OAuth mode (Xero Web app + MCP OAuth for claude.ai connectors).
 // Set up in main() before the server starts listening.
 let oauth: { routes: OAuthRoutes; grants: GrantService } | null = null;
+// Machine callers that use an existing OAuth grant without holding Xero tokens (see oauth/service-clients.ts).
+let serviceClients: ServiceClient[] = [];
+
+// MCP request from a service client: x-service-key -> grant, tenant and tool allow-lists enforced before any tool runs.
+async function handleServiceMcp(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  active: { routes: OAuthRoutes; grants: GrantService },
+): Promise<void> {
+  const client = authenticateServiceClient(serviceClients, req.headers["x-service-key"]);
+  if (!client) {
+    sendError(res, 401, "Unauthorized");
+    return;
+  }
+  if (req.method !== "POST") {
+    res.writeHead(405, { "content-type": "application/json", allow: "POST" });
+    res.end(JSON.stringify({ error: "Method not allowed" }));
+    return;
+  }
+  const grantId = active.grants.store.read((data) =>
+    Object.entries(data.grants).find(([, g]) => g.email.toLowerCase() === client.grantEmail.toLowerCase())?.[0],
+  );
+  if (!grantId) {
+    sendError(res, 503, "The Xero grant for this service client is not connected.");
+    return;
+  }
+  const body = await readJsonBody(req);
+  const verdict = authorizeServiceBody(client, body);
+  if (!verdict.ok) {
+    console.error(`Service client ${client.id} refused: ${verdict.reason}`);
+    sendError(res, 403, verdict.reason);
+    return;
+  }
+  const server = buildServer(active.grants);
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+  transport.onerror = () => {
+    console.error("MCP transport error.");
+  };
+  await oauthRequestContext.run({ grantId }, async () => {
+    await server.connect(transport);
+    await transport.handleRequest(req, res, body);
+  });
+}
 
 function isAuthorized(req: http.IncomingMessage): boolean {
   const apiKey = req.headers["x-api-key"];
@@ -125,8 +174,13 @@ const httpServer = http.createServer(async (req, res) => {
       return;
     }
 
+    if (oauth && serviceClients.length > 0 && url.pathname === "/mcp" && req.headers["x-service-key"] !== undefined) {
+      await handleServiceMcp(req, res, oauth);
+      return;
+    }
+
     // OAuth-mode MCP calls: no x-api-key header, bearer token issued by /token.
-    if (oauth && url.pathname === "/mcp" && req.headers["x-api-key"] === undefined) {
+    if (oauth && url.pathname === "/mcp" && req.headers["x-api-key"] === undefined && req.headers["x-service-key"] === undefined) {
       await handleOAuthMcp(req, res, oauth);
       return;
     }
@@ -233,6 +287,7 @@ const httpServer = http.createServer(async (req, res) => {
 });
 
 async function main(): Promise<void> {
+  serviceClients = loadServiceClients(process.env.SERVICE_CLIENTS);
   const result = loadOAuthConfig();
   if (result.enabled) {
     try {

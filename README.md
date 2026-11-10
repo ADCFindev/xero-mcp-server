@@ -15,6 +15,19 @@ Every Xero tool gets an optional `organisation` argument (name or tenant ID). Ex
 
 `list-account-transactions` reads `/Journals`, which needs the `accounting.journals.read` scope. Xero restricts that scope (the app needs Journals API access), so it is not requested by default: once the Xero app has access, add `accounting.journals.read` to `XERO_SCOPES`, then reconnect through `/connect` so the stored token carries it. Asking for the scope before the app has access can make Xero reject the sign-in.
 
+## Service clients (machine callers using an existing grant)
+
+For back-end applications such as ADC Xero Workflows. A service client authenticates with `x-service-key` and uses the Xero OAuth grant of a named, already-connected Xero login; it never receives a Xero token, so rotating refresh tokens stay only in this server's encrypted store.
+
+Set `SERVICE_CLIENTS` (JSON array) on the service:
+
+```json
+[{"id":"adc-xero-workflows","keySha256":"<sha-256 hex of the secret key>","grantEmail":"<connected Xero login>",
+  "allowedTenantIds":["<tenant uuid>"],"allowedTools":["list-accounts","list-invoices"]}]
+```
+
+Every `tools/call` must pass `organisation` equal to one allowed tenant ID (names and the grant default are refused) and a tool on the allow-list; other methods are refused. Generate the key with a CSPRNG, keep it only in the caller's secret store, and put only its hash here. Leaving `SERVICE_CLIENTS` unset disables the mode. Write tools should be added to `allowedTools` only per tenant policy.
+
 ## Features
 
 - Xero OAuth2 authentication with custom connections
