@@ -187,6 +187,9 @@ payroll.timesheets
 - `create-payroll-timesheet`: Create a new Payroll Timesheet
 - `create-tracking-category`: Create a new tracking category
 - `create-tracking-option`: Create a new tracking option
+- `copy-attachment`: Copy one attachment from an invoice/bill, credit note or bank transaction to another, on the server; idempotent, size verified by read-back
+- `get-attachment`: Download one attachment (view or base64); files over 10 MB are refused
+- `upload-attachment`: Upload an attachment from base64 content, verified by read-back
 - `update-bank-transaction`: Update an existing bank transaction
 - `update-contact`: Update an existing contact
 - `update-invoice`: Update an existing draft invoice

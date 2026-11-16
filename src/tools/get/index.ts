@@ -8,6 +8,7 @@ import GetBankTransactionTool from "./get-bank-transaction.tool.js";
 import GetPaymentTool from "./get-payment.tool.js";
 import GetContactTool from "./get-contact.tool.js";
 import ListAttachmentsTool from "./list-attachments.tool.js";
+import GetAttachmentTool from "./get-attachment.tool.js";
 import GetHistoryTool from "./get-history.tool.js";
 
 export const GetTools = [
@@ -21,5 +22,6 @@ export const GetTools = [
   GetPaymentTool,
   GetContactTool,
   ListAttachmentsTool,
+  GetAttachmentTool,
   GetHistoryTool,
 ];
