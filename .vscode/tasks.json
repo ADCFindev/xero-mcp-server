@@ -7,7 +7,7 @@
       "command": "py",
       "args": [
         "-3",
-        "C:\\ADC-FinanceLM\\claude-archive-tool\\archive_claude.py",
+        "${env:USERPROFILE}\\adc-financelm-lab\\financeLM-claude-archive\\archive_claude.py",
         "--archive",
         "${env:LOCALAPPDATA}\\ADC-FinanceLM\\claude-archive"
       ],
