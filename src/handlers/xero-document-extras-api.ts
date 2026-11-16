@@ -234,6 +234,91 @@ export async function uploadXeroAttachment(params: {
   }
 }
 
+export type CopiedAttachment = {
+  copied: boolean;
+  alreadyAttached: boolean;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  source: AttachmentRecord;
+  attachmentsOnTarget: AttachmentRecord[];
+};
+
+// Copies one attachment from a document to another, on the server: the file never passes through the caller.
+// Idempotent: a file with the same name and size already on the target is reported as attached, not uploaded again.
+// A different file under the same name is refused (Xero would silently replace or duplicate it).
+export async function copyXeroAttachment(params: {
+  fromResource: SupportedDocumentResource;
+  fromResourceId: string;
+  toResource: SupportedDocumentResource;
+  toResourceId: string;
+  attachmentId?: string;
+  fileName?: string;
+  toFileName?: string;
+}): Promise<XeroClientResponse<CopiedAttachment>> {
+  try {
+    if (
+      params.fromResource === params.toResource &&
+      params.fromResourceId === params.toResourceId &&
+      !params.toFileName
+    ) {
+      throw new Error("Source and target are the same document; give toFileName to copy under another name.");
+    }
+
+    const downloaded = await getXeroAttachment({
+      resource: params.fromResource,
+      resourceId: params.fromResourceId,
+      attachmentId: params.attachmentId,
+      fileName: params.fileName,
+    });
+    if (downloaded.isError) throw new Error(downloaded.error);
+
+    const { attachment, contentBase64, sizeBytes } = downloaded.result;
+    const fileName = params.toFileName ?? attachment.FileName;
+    if (!fileName) throw new Error("The source attachment has no file name; give toFileName.");
+    const mimeType = attachment.MimeType || "application/octet-stream";
+
+    const existing = await listXeroAttachments(params.toResource, params.toResourceId);
+    if (existing.isError) throw new Error(existing.error);
+    const same = (existing.result ?? []).find((candidate) => candidate.FileName === fileName);
+    if (same) {
+      if (same.ContentLength === sizeBytes) {
+        return {
+          result: { copied: false, alreadyAttached: true, fileName, mimeType, sizeBytes, source: attachment, attachmentsOnTarget: existing.result ?? [] },
+          isError: false,
+          error: null,
+        };
+      }
+      throw new Error(
+        `The target already has a different file named ${fileName} (${same.ContentLength ?? "unknown"} bytes, source ${sizeBytes}); nothing was uploaded.`,
+      );
+    }
+
+    const uploaded = await uploadXeroAttachment({
+      resource: params.toResource,
+      resourceId: params.toResourceId,
+      fileName,
+      contentBase64,
+      contentType: mimeType,
+    });
+    if (uploaded.isError) throw new Error(uploaded.error);
+
+    const onTarget = uploaded.result.attachmentsAfterUpload;
+    const landed = onTarget.find((candidate) => candidate.FileName === fileName);
+    if (landed?.ContentLength !== undefined && landed.ContentLength !== sizeBytes) {
+      throw new Error(`Uploaded, but the size on the target (${landed.ContentLength}) differs from the source (${sizeBytes}); check the target in Xero.`);
+    }
+
+    return {
+      result: { copied: true, alreadyAttached: false, fileName, mimeType, sizeBytes, source: attachment, attachmentsOnTarget: onTarget },
+      isError: false,
+      error: null,
+    };
+  } catch (error) {
+    return { result: null, isError: true, error: formatError(error) };
+  }
+}
+
 export async function getXeroHistory(
   resource: SupportedDocumentResource,
   resourceId: string,
