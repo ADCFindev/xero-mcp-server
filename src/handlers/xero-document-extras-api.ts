@@ -1,4 +1,5 @@
 import axios from "axios";
+import { createHash } from "node:crypto";
 
 import { xeroClient } from "../clients/xero-client.js";
 import { formatError } from "../helpers/format-error.js";
@@ -403,6 +404,109 @@ export async function addXeroHistoryNote(params: {
         created: normalizeXeroOutput(created) as HistoryRecord[],
         historyAfterWrite,
       },
+      isError: false,
+      error: null,
+    };
+  } catch (error) {
+    return { result: null, isError: true, error: formatError(error) };
+  }
+}
+
+export type AttachedFromUrl = {
+  attached: boolean;
+  alreadyAttached: boolean;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  attachmentsOnTarget: AttachmentRecord[];
+};
+
+function allowedSourceHosts(): string[] {
+  return (process.env.ATTACHMENT_SOURCE_HOSTS ?? "")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+// Attaches a file that the SERVER downloads from a one-time https link (e.g. a Drive download link from our Google
+// Workspace connector), so the bytes never pass through the caller. Only hosts listed in ATTACHMENT_SOURCE_HOSTS are
+// fetched, no redirects, at most 10 MB. The received bytes are checked against the sender's size/SHA-256 when given, and
+// the upload is read back and its size compared. Idempotent: same name and size already on the target = nothing sent.
+export async function attachXeroAttachmentFromUrl(params: {
+  resource: SupportedDocumentResource;
+  resourceId: string;
+  sourceUrl: string;
+  fileName?: string;
+  expectedSizeBytes?: number;
+  expectedSha256?: string;
+}): Promise<XeroClientResponse<AttachedFromUrl>> {
+  try {
+    const source = new URL(params.sourceUrl);
+    const hosts = allowedSourceHosts();
+    if (source.protocol !== "https:" || !hosts.includes(source.hostname.toLowerCase())) {
+      throw new Error(
+        `The source host ${source.hostname} is not allowed; set ATTACHMENT_SOURCE_HOSTS on the server (https only).`,
+      );
+    }
+
+    const response = await axios.get(params.sourceUrl, {
+      responseType: "arraybuffer",
+      maxRedirects: 0,
+      maxContentLength: MAX_ATTACHMENT_DOWNLOAD_BYTES,
+      validateStatus: (status: number) => status === 200,
+    });
+    const bytes = Buffer.from(response.data);
+    if (bytes.length === 0) throw new Error("The source returned an empty file.");
+
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    const headerSha = String(response.headers?.["x-sha256"] ?? "").toLowerCase();
+    const wantedSha = (params.expectedSha256 ?? headerSha).toLowerCase();
+    if (wantedSha && wantedSha !== sha256) {
+      throw new Error(`The downloaded file's SHA-256 (${sha256}) differs from the expected one (${wantedSha}); nothing was uploaded.`);
+    }
+    if (params.expectedSizeBytes !== undefined && params.expectedSizeBytes !== bytes.length) {
+      throw new Error(`The downloaded file is ${bytes.length} bytes, expected ${params.expectedSizeBytes}; nothing was uploaded.`);
+    }
+
+    const headerName = response.headers?.["x-file-name"] ? decodeURIComponent(String(response.headers["x-file-name"])) : undefined;
+    const fileName = params.fileName ?? headerName;
+    if (!fileName) throw new Error("No file name: the source sent none and fileName was not given.");
+    const mimeType = String(response.headers?.["content-type"] ?? "application/octet-stream").split(";")[0];
+
+    const existing = await listXeroAttachments(params.resource, params.resourceId);
+    if (existing.isError) throw new Error(existing.error);
+    const same = (existing.result ?? []).find((candidate) => candidate.FileName === fileName);
+    if (same) {
+      if (same.ContentLength === bytes.length) {
+        return {
+          result: { attached: false, alreadyAttached: true, fileName, mimeType, sizeBytes: bytes.length, sha256, attachmentsOnTarget: existing.result ?? [] },
+          isError: false,
+          error: null,
+        };
+      }
+      throw new Error(
+        `The document already has a different file named ${fileName} (${same.ContentLength ?? "unknown"} bytes, new ${bytes.length}); nothing was uploaded.`,
+      );
+    }
+
+    const uploaded = await uploadXeroAttachment({
+      resource: params.resource,
+      resourceId: params.resourceId,
+      fileName,
+      contentBase64: bytes.toString("base64"),
+      contentType: mimeType,
+    });
+    if (uploaded.isError) throw new Error(uploaded.error);
+
+    const onTarget = uploaded.result.attachmentsAfterUpload;
+    const landed = onTarget.find((candidate) => candidate.FileName === fileName);
+    if (landed?.ContentLength !== undefined && landed.ContentLength !== bytes.length) {
+      throw new Error(`Uploaded, but the size in Xero (${landed.ContentLength}) differs from the file (${bytes.length}); check the document in Xero.`);
+    }
+
+    return {
+      result: { attached: true, alreadyAttached: false, fileName, mimeType, sizeBytes: bytes.length, sha256, attachmentsOnTarget: onTarget },
       isError: false,
       error: null,
     };
