@@ -16,6 +16,7 @@ import CreateTrackingCategoryTool from "./create-tracking-category.tool.js";
 import CreateTrackingOptionsTool from "./create-tracking-options.tool.js";
 import UploadAttachmentTool from "./upload-attachment.tool.js";
 import CopyAttachmentTool from "./copy-attachment.tool.js";
+import AttachFromUrlTool from "./attach-from-url.tool.js";
 import AddHistoryNoteTool from "./add-history-note.tool.js";
 
 export const CreateTools = [
@@ -37,5 +38,6 @@ export const CreateTools = [
   CreateTrackingOptionsTool,
   UploadAttachmentTool,
   CopyAttachmentTool,
+  AttachFromUrlTool,
   AddHistoryNoteTool
 ];
