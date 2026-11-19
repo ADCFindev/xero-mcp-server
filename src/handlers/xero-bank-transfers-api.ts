@@ -151,6 +151,7 @@ export async function createXeroBankTransfer(params: {
   fromBankAccountId: string;
   toBankAccountId: string;
   amount: number;
+  currencyRate?: number;
   date?: string;
   reference?: string;
   fromIsReconciled?: boolean;
@@ -171,6 +172,7 @@ export async function createXeroBankTransfer(params: {
         AccountID: params.toBankAccountId,
       },
       Amount: params.amount,
+      ...(params.currencyRate ? { CurrencyRate: params.currencyRate } : {}),
       ...(params.date ? { Date: params.date } : {}),
       ...(params.reference ? { Reference: params.reference } : {}),
       ...(params.fromIsReconciled !== undefined

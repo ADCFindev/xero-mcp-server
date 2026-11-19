@@ -5,7 +5,7 @@ import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
 
 const CreateBankTransferTool = CreateXeroTool(
   "create-bank-transfer",
-  "Create a Xero BankTransfer between two bank accounts. Xero creates SPEND-TRANSFER and RECEIVE-TRANSFER BankTransactions automatically. Xero does not support bank transfers between accounts in different currencies through this endpoint. Read the transfer back after creation to verify it.",
+  "Create a Xero BankTransfer between two bank accounts. Xero creates SPEND-TRANSFER and RECEIVE-TRANSFER BankTransactions automatically. For accounts in different currencies pass currencyRate (units of the destination currency per 1 unit of the source currency; amount stays in the source currency), so the destination receives exactly amount x currencyRate. Read the transfer back after creation to verify it.",
   {
     fromBankAccountId: z
       .string()
@@ -17,6 +17,11 @@ const CreateBankTransferTool = CreateXeroTool(
       .number()
       .positive()
       .describe("Amount transferred, expressed in the source bank account currency."),
+    currencyRate: z
+      .number()
+      .positive()
+      .optional()
+      .describe("Only when the two accounts have different currencies: units of the destination currency per 1 unit of the source currency. Xero converts amount at this rate; leave empty to use Xero's own rate."),
     date: z
       .string()
       .optional()
@@ -38,6 +43,7 @@ const CreateBankTransferTool = CreateXeroTool(
     fromBankAccountId,
     toBankAccountId,
     amount,
+    currencyRate,
     date,
     reference,
     fromIsReconciled,
@@ -47,6 +53,7 @@ const CreateBankTransferTool = CreateXeroTool(
       fromBankAccountId,
       toBankAccountId,
       amount,
+      currencyRate,
       date,
       reference,
       fromIsReconciled,
