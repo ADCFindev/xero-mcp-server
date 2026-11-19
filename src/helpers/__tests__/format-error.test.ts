@@ -183,3 +183,33 @@ describe("formatError", () => {
     });
   });
 });
+
+describe("formatError: Xero validation text on Axios errors", () => {
+  function axiosWithData(status: number, data: unknown): AxiosError {
+    const headers = new AxiosHeaders();
+    const config = { headers };
+    return new AxiosError("Request failed", String(status), config as never, null, {
+      status,
+      data,
+      statusText: "",
+      headers: {},
+      config,
+    } as never);
+  }
+
+  it("shows Message and ValidationErrors of a 400", () => {
+    const error = axiosWithData(400, {
+      Message: "A validation exception occurred",
+      Elements: [{ ValidationErrors: [{ Message: "Bank transfer currencies must match." }] }],
+    });
+    expect(formatError(error)).toBe("400 A validation exception occurred: Bank transfer currencies must match.");
+  });
+
+  it("shows the Message when there are no ValidationErrors", () => {
+    expect(formatError(axiosWithData(400, { Message: "Bad request" }))).toBe("400 Bad request");
+  });
+
+  it("keeps the generic text when there is nothing to show", () => {
+    expect(formatError(axiosWithData(400, {}))).toBe("An error occurred while communicating with Xero.");
+  });
+});
