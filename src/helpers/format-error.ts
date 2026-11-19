@@ -52,11 +52,31 @@ function formatHttpStatus(status: number): string {
 export function formatError(error: unknown): string {
   if (error instanceof AxiosError) {
     const status = error.response?.status;
-    const detail = error.response?.data?.Detail;
+    const data = error.response?.data as
+      | {
+          Detail?: unknown;
+          Message?: unknown;
+          Elements?: { ValidationErrors?: { Message?: unknown }[] }[];
+          BankTransfers?: { ValidationErrors?: { Message?: unknown }[] }[];
+        }
+      | undefined;
+    const detail = typeof data?.Detail === "string" ? data.Detail : undefined;
 
     if (status !== undefined) {
       const mapped = formatHttpStatus(status);
       if (mapped) return mapped;
+    }
+
+    // Accounting API 400s carry their reasons in Message / ValidationErrors; whitelist the text only.
+    const validationMessages = [...(data?.Elements ?? []), ...(data?.BankTransfers ?? [])]
+      .flatMap((element) => element?.ValidationErrors ?? [])
+      .map((validationError) => validationError?.Message)
+      .filter((message): message is string => typeof message === "string" && message.length > 0);
+    if (validationMessages.length > 0) {
+      return `${status ?? ""} ${typeof data?.Message === "string" ? data.Message : "Validation error"}: ${validationMessages.join(" ")}`.trim();
+    }
+    if (typeof data?.Message === "string" && data.Message.length > 0) {
+      return `${status ?? ""} ${data.Message}`.trim();
     }
     return detail || "An error occurred while communicating with Xero.";
   }
