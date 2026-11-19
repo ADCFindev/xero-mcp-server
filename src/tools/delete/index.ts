@@ -7,6 +7,7 @@ import DeletePrepaymentAllocationTool from "./delete-prepayment-allocation.tool.
 import DeleteOverpaymentAllocationTool from "./delete-overpayment-allocation.tool.js";
 import DeleteCreditNoteAllocationTool from "./delete-credit-note-allocation.tool.js";
 import VoidInvoiceTool from "./void-invoice.tool.js";
+import DeleteInvoiceTool from "./delete-invoice.tool.js";
 
 export const DeleteTools = [
   DeletePayrollTimesheetTool,
@@ -18,4 +19,5 @@ export const DeleteTools = [
   DeleteOverpaymentAllocationTool,
   DeleteCreditNoteAllocationTool,
   VoidInvoiceTool,
+  DeleteInvoiceTool,
 ];
