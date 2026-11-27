@@ -3,6 +3,7 @@ import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
 import { listXeroBankTransactions } from "../../handlers/list-xero-bank-transactions.handler.js";
 import { formatLineItem } from "../../helpers/format-line-item.js";
 import { formatAmount, formatXeroDate } from "../../helpers/format-xero-output.js";
+import { DEFAULT_PAGE_SIZE, isoDay, pageLine, pageSizeArgument, rangeProblem } from "../../helpers/list-filters.js";
 
 const ListBankTransactionsTool = CreateXeroTool(
   "list-bank-transactions",
@@ -10,9 +11,18 @@ const ListBankTransactionsTool = CreateXeroTool(
   {
     page: z.number(),
     bankAccountId: z.string().optional(),
+    statuses: z.array(z.enum(["AUTHORISED", "DELETED", "VOIDED"])).optional()
+      .describe("Only transactions with these statuses, e.g. [\"AUTHORISED\"]"),
+    fromDate: isoDay.optional().describe("Only transactions dated on or after this day (YYYY-MM-DD)"),
+    toDate: isoDay.optional().describe("Only transactions dated on or before this day (YYYY-MM-DD)"),
+    pageSize: pageSizeArgument,
   },
-  async ({ bankAccountId, page }) => {
-    const response = await listXeroBankTransactions(page, bankAccountId);
+  async ({ bankAccountId, page, statuses, fromDate, toDate, pageSize }) => {
+    const problem = rangeProblem(fromDate, toDate);
+    if (problem) {
+      return { content: [{ type: "text" as const, text: `Error listing bank transactions: ${problem}` }] };
+    }
+    const response = await listXeroBankTransactions(page, bankAccountId, { statuses, fromDate, toDate, pageSize });
     if (response.isError) {
       return {
         content: [{ type: "text" as const, text: `Error listing bank transactions: ${response.error}` }],
@@ -20,11 +30,14 @@ const ListBankTransactionsTool = CreateXeroTool(
     }
 
     const bankTransactions = response.result ?? [];
+    const paging = pageLine(page, pageSize ?? DEFAULT_PAGE_SIZE, { account: bankAccountId, statuses, from: fromDate, to: toDate });
     if (bankTransactions.length === 0) {
-      return { content: [{ type: "text" as const, text: "Found 0 bank transactions." }] };
+      return { content: [{ type: "text" as const, text: `Found 0 bank transactions.
+${paging}` }] };
     }
 
-    const header = `Found ${bankTransactions.length} ${bankTransactions.length === 1 ? "bank transaction" : "bank transactions"}.`;
+    const header = `Found ${bankTransactions.length} ${bankTransactions.length === 1 ? "bank transaction" : "bank transactions"}.
+${paging}`;
     const records = bankTransactions.map((transaction) =>
       [
         `Bank Transaction ID: ${transaction.bankTransactionID || "(none)"}`,
