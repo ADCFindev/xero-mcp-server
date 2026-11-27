@@ -154,16 +154,16 @@ payroll.timesheets
 - `list-account-transactions`: General ledger lines for one or more accounts in a date range (the Account Transactions report), built from Xero journals. Needs the `accounting.journals.read` scope
 - `list-contacts`: Retrieve a list of contacts from Xero
 - `list-credit-notes`: Retrieve a list of credit notes
-- `list-invoices`: Retrieve a list of invoices
+- `list-invoices`: Retrieve a list of invoices (optional `statuses`, `fromDate`, `toDate`, `pageSize` up to 100)
 - `list-items`: Retrieve a list of items
 - `list-manual-journals`: Retrieve a list of manual journals
 - `list-organisation-details`: Retrieve details about an organisation
 - `list-profit-and-loss`: Retrieve a profit and loss report
 - `list-quotes`: Retrieve a list of quotes
 - `list-tax-rates`: Retrieve a list of tax rates
-- `list-payments`: Retrieve a list of payments
+- `list-payments`: Retrieve a list of payments (optional `statuses`, `fromDate`, `toDate`, `pageSize` up to 100; each payment shows its bank account and reconciliation status)
 - `list-trial-balance`: Retrieve a trial balance report (compact one-line-per-account by default; `format: "full"` for raw rows)
-- `list-bank-transactions`: Retrieve a list of bank account transactions
+- `list-bank-transactions`: Retrieve a list of bank account transactions (optional `statuses`, `fromDate`, `toDate`, `pageSize` up to 100)
 - `list-payroll-employees`: Retrieve a list of Payroll Employees
 - `list-report-balance-sheet`: Retrieve a balance sheet report
 - `list-payroll-employee-leave`: Retrieve a Payroll Employee's leave records

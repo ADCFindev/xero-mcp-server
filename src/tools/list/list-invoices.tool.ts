@@ -3,6 +3,9 @@ import { listXeroInvoices } from "../../handlers/list-xero-invoices.handler.js";
 import { CreateXeroTool } from "../../helpers/create-xero-tool.js";
 import { formatLineItem } from "../../helpers/format-line-item.js";
 import { formatAmount, formatXeroDate } from "../../helpers/format-xero-output.js";
+import { DEFAULT_PAGE_SIZE, isoDay, pageLine, pageSizeArgument, rangeProblem } from "../../helpers/list-filters.js";
+
+const INVOICE_STATUSES = ["DRAFT", "SUBMITTED", "AUTHORISED", "PAID", "VOIDED", "DELETED"] as const;
 
 const ListInvoicesTool = CreateXeroTool(
   "list-invoices",
@@ -11,21 +14,33 @@ const ListInvoicesTool = CreateXeroTool(
     page: z.number(),
     contactIds: z.array(z.string()).optional(),
     invoiceNumbers: z.array(z.string()).optional().describe("If provided, invoice line items will also be returned"),
+    statuses: z.array(z.enum(INVOICE_STATUSES)).optional()
+      .describe("Only documents with these statuses, e.g. [\"AUTHORISED\"] for approved invoices and bills not paid yet"),
+    fromDate: isoDay.optional().describe("Only documents dated on or after this day (YYYY-MM-DD)"),
+    toDate: isoDay.optional().describe("Only documents dated on or before this day (YYYY-MM-DD)"),
+    pageSize: pageSizeArgument,
   },
-  async ({ page, contactIds, invoiceNumbers }) => {
-    const response = await listXeroInvoices(page, contactIds, invoiceNumbers);
+  async ({ page, contactIds, invoiceNumbers, statuses, fromDate, toDate, pageSize }) => {
+    const problem = rangeProblem(fromDate, toDate);
+    if (problem) {
+      return { content: [{ type: "text" as const, text: `Error listing invoices: ${problem}` }] };
+    }
+    const response = await listXeroInvoices(page, contactIds, invoiceNumbers, { statuses, fromDate, toDate, pageSize });
     if (response.error !== null) {
       return { content: [{ type: "text" as const, text: `Error listing invoices: ${response.error}` }] };
     }
 
     const invoices = response.result ?? [];
     const returnLineItems = (invoiceNumbers?.length ?? 0) > 0;
+    const paging = pageLine(page, pageSize ?? DEFAULT_PAGE_SIZE, { statuses, from: fromDate, to: toDate });
 
     if (invoices.length === 0) {
-      return { content: [{ type: "text" as const, text: "Found 0 invoices." }] };
+      return { content: [{ type: "text" as const, text: `Found 0 invoices.
+${paging}` }] };
     }
 
-    const header = `Found ${invoices.length} ${invoices.length === 1 ? "invoice" : "invoices"}.`;
+    const header = `Found ${invoices.length} ${invoices.length === 1 ? "invoice" : "invoices"}.
+${paging}`;
     const records = invoices.map((invoice) =>
       [
         `Invoice ID: ${invoice.invoiceID || "(none)"}`,
